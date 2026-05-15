@@ -67,10 +67,15 @@ if (!state.places.length) {
           </button>
         </div>
       </div>
+
+      <div class="source-note">
+        当前为 V2.1 演示数据，地点推荐来自内置 Mock 数据，用于展示规划流程。真实 AI、地图与攻略数据源将在后续版本接入。你也可以粘贴攻略文本，系统会尝试提取其中的地点信息。
+      </div>
+
       <p v-if="state.warning" class="warning-banner">{{ state.warning }}</p>
       <PasteGuidePanel />
       <div v-if="loadingPlaces" class="empty-state">正在生成候选地点...</div>
-      <div v-else class="place-grid">
+      <div v-else class="place-grid compact-place-grid">
         <PlaceCard v-for="place in state.places" :key="place.id" :place="place" @status="updateStatus" />
       </div>
     </div>

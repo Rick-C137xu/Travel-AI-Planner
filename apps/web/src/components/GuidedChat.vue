@@ -122,7 +122,8 @@ function setSingle(value: string | number) {
             :class="['option-btn', { active: localValue === String(option.value) }]"
             @click="setSingle(option.value)"
           >
-            {{ option.label }}
+            <strong>{{ option.label }}</strong>
+            <span v-if="option.description">{{ option.description }}</span>
           </button>
         </div>
         <div v-else class="option-grid">

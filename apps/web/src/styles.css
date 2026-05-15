@@ -82,7 +82,8 @@ button:disabled {
 
 .status-pill,
 .type-tag,
-.source-tag {
+.source-tag,
+.mini-tag {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -97,6 +98,13 @@ button:disabled {
 .source-tag {
   background: #edf2f8;
   color: var(--blue);
+}
+
+.mini-tag {
+  background: #f5f1e8;
+  color: #6f5937;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .app-shell {
@@ -273,11 +281,28 @@ button:disabled {
   gap: 10px;
 }
 
+.option-btn {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.option-btn span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .option-btn.active,
 .card-actions button.active {
   color: #fff;
   background: var(--green);
   border-color: var(--green);
+}
+
+.option-btn.active span {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .summary-panel {
@@ -339,16 +364,29 @@ button:disabled {
   resize: vertical;
 }
 
+.source-note {
+  border: 1px solid #cfe0d8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #eef7f2;
+  color: #315146;
+  font-size: 14px;
+}
+
 .place-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
+.compact-place-grid {
+  gap: 12px;
+}
+
 .place-card {
   display: grid;
-  gap: 12px;
-  padding: 18px;
+  gap: 10px;
+  padding: 14px;
   min-width: 0;
 }
 
@@ -367,12 +405,48 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.compact-card-head {
+  align-items: flex-start;
+}
+
+.place-title-block {
+  min-width: 0;
+}
+
 .place-card h3 {
-  margin: 8px 0 0;
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .reason,
 .warning {
+  margin: 0;
+}
+
+.reason {
+  color: #2c3b35;
+  font-size: 14px;
+}
+
+.place-detail {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8faf9;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.place-detail p {
   margin: 0;
 }
 
@@ -442,6 +516,10 @@ button:disabled {
   min-height: 34px;
   padding: 0;
   font-size: 20px;
+}
+
+.detail-toggle {
+  flex: 0 0 auto;
 }
 
 .map-panel {
@@ -532,6 +610,10 @@ button:disabled {
     flex: 1 1 140px;
   }
 
+  .detail-toggle {
+    flex-basis: 84px;
+  }
+
   .hero-copy,
   .feature-panel,
   .chat-panel,
@@ -559,6 +641,22 @@ button:disabled {
 
   .place-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .place-card {
+    padding: 12px;
+  }
+
+  .type-tag,
+  .source-tag,
+  .mini-tag {
+    min-height: 24px;
+    padding: 3px 8px;
+  }
+
+  .card-actions {
+    gap: 8px;
   }
 
   .summary-panel dl {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, watch, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { addMarkers, createMap, hasAmapKey } from '@/services/amapService';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
@@ -49,7 +49,7 @@ watch(selectedPlaces, (places) => mapReady.value && addMarkers(places), { deep: 
     <div v-show="!mapMessage" id="amap-container" class="map-container"></div>
     <div class="pending-panel">
       <h3>待定位地点</h3>
-      <p v-if="!pendingPlaces.length">所有已选地点都有经纬度或暂无待定位项。</p>
+      <p v-if="!pendingPlaces.length">所有已选地点都有经纬度，或暂无待定位项。</p>
       <ul v-else>
         <li v-for="place in pendingPlaces" :key="place.id">{{ place.name }} · {{ place.type }}</li>
       </ul>

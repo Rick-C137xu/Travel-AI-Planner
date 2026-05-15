@@ -25,7 +25,7 @@ function start() {
       </div>
       <div class="feature-item">
         <strong>推荐候选地点</strong>
-        <span>可结合 AI 或 mock 数据，也支持粘贴攻略文本提取。</span>
+        <span>V2.1 使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。</span>
       </div>
       <div class="feature-item">
         <strong>生成每日行程</strong>
@@ -33,7 +33,7 @@ function start() {
       </div>
       <div class="feature-item">
         <strong>地图展示</strong>
-        <span>配置高德 Key 后显示真实地图；未配置时自动降级。</span>
+        <span>未配置高德 Key 时自动降级为地点清单，不影响主流程。</span>
       </div>
     </div>
   </section>

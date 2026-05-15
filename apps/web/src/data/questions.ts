@@ -8,11 +8,11 @@ export interface Question {
   title: string;
   helper?: string;
   kind: QuestionKind;
-  options?: Array<{ label: string; value: string | number }>;
+  options?: Array<{ label: string; value: string | number; description?: string }>;
 }
 
 export const questions: Question[] = [
-  { key: 'destination', title: '这次想去哪里？', helper: '例如：上海、成都、京都、曼谷', kind: 'text' },
+  { key: 'destination', title: '这次想去哪里？', helper: '例如：张家界、重庆、上海、成都、杭州', kind: 'text' },
   { key: 'startDate', title: '什么时候出发？', kind: 'date' },
   { key: 'days', title: '准备玩几天？', kind: 'number' },
   { key: 'peopleCount', title: '同行一共几个人？', kind: 'number' },
@@ -46,11 +46,12 @@ export const questions: Question[] = [
   {
     key: 'budgetLevel',
     title: '预算大概是什么水平？',
+    helper: 'V2.1 先用档位快速判断，后续会加入人均/每日预算等量化输入。',
     kind: 'single',
     options: [
-      { label: '低', value: 'low' },
-      { label: '中', value: 'medium' },
-      { label: '高', value: 'high' }
+      { label: '低', value: 'low', description: '公共交通、平价餐饮、免费或低门票景点优先' },
+      { label: '中', value: 'medium', description: '兼顾体验和性价比，适当安排付费景点与特色餐饮' },
+      { label: '高', value: 'high', description: '优先体验质量，可接受更高交通、餐饮和门票成本' }
     ]
   },
   {

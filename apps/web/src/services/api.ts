@@ -21,13 +21,13 @@ function mockEnvelope<T>(data: T, warning?: string): ApiEnvelope<T> {
 
 async function withFallback<T>(request: () => Promise<ApiEnvelope<T>>, fallback: () => T): Promise<ApiEnvelope<T>> {
   if (useMock) {
-    return mockEnvelope(fallback(), '前端 VITE_USE_MOCK=true，已使用前端 mock 数据。');
+    return mockEnvelope(fallback(), '当前为 V2.1 前端 Mock 演示数据，未请求真实后端。');
   }
   try {
     return await request();
   } catch (error) {
     const reason = error instanceof Error ? error.message : '未知错误';
-    return mockEnvelope(fallback(), `后端请求失败，已降级为前端 mock 数据。原因：${reason}`);
+    return mockEnvelope(fallback(), `后端请求失败，已降级为前端 Mock 数据。原因：${reason}`);
   }
 }
 

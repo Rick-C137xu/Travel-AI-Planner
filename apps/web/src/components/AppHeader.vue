@@ -15,7 +15,7 @@ const stepText: Record<AppStep, string> = {
 <template>
   <header class="app-header">
     <div>
-      <p class="eyebrow">Travel AI Planner · V1 MVP</p>
+      <p class="eyebrow">Travel AI Planner · V2.1</p>
       <h1>AI 出行旅游计划助手</h1>
     </div>
     <div class="header-actions">

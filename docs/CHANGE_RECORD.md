@@ -8,21 +8,9 @@
 
 - `.gitignore`：忽略 `node_modules`、`dist`、`.env`、虚拟环境、缓存等本地生成文件。
 - `.env.example`：列出 AI、高德地图和前端代理相关环境变量，不包含真实 Key。
-- `README.md`：补充项目功能、技术栈、安装运行方式、环境变量、API、当前版本功能和后续计划。
-- `AGENTS.md`：定义后续 AI agent 修改项目的协作规则。
 - `apps/web`：创建 Vue 3 + Vite + TypeScript 前端。
-- `apps/web/src/components/*`：创建首页、问答、需求摘要、候选地点、行程、地图和攻略粘贴相关组件。
-- `apps/web/src/services/api.ts`：前端 API 请求封装。
-- `apps/web/src/services/amapService.ts`：高德地图加载、创建地图、marker 管理和视野适配。
-- `apps/web/src/store/usePlannerStore.ts`：响应式状态和 `localStorage` 持久化。
-- `apps/web/src/types.ts`：前端核心数据结构。
-- `apps/web/src/data/questions.ts`：问答问题配置。
-- `apps/web/src/styles.css`：全局样式和响应式布局。
 - `apps/api`：创建 FastAPI 后端骨架。
-- `apps/api/app/models.py`：后端核心数据模型。
-- `apps/api/app/mock_data.py`：Mock 候选地点、攻略提取和行程生成。
-- `apps/api/app/ai_client.py`：可选 AI 调用和 JSON 容错解析。
-- `apps/api/app/main.py`：健康检查、问答、候选地点、攻略提取、行程生成 API。
+- `docs/CHANGE_RECORD.md`、`README.md`、`AGENTS.md`：建立项目文档和协作规则。
 
 ### 检查
 
@@ -55,24 +43,65 @@
 - `apps/web/src/styles.css`：轻量优化移动端布局，避免窄屏横向溢出、按钮过挤和卡片过宽。
 - `.env.example`：整理环境变量说明，确认 `VITE_USE_MOCK=true`、`VITE_API_BASE_URL=`、`VITE_AMAP_KEY=`。
 - `README.md`：更新为 V2 Web Deploy Ready，增加 Vercel / Cloudflare Pages 部署入口和本地运行说明。
-- `docs/DEPLOYMENT.md`：新增 V2 部署文档，包含 Vercel、Cloudflare Pages、环境变量、常见问题、成功验证和 V3 后端说明。
-- `docs/CHANGE_RECORD.md`：记录本轮 V2 修改、原因和验证。
+- `docs/DEPLOYMENT.md`：新增 V2 部署文档。
 - `AGENTS.md`：补充部署配置不要写死密钥、V2 不引入真实后端依赖、部署修改必须更新文档的规则。
+
+### 检查
+
+- 已运行 `npm.cmd run typecheck`，通过。
+- 已运行 `npm.cmd run build`，通过。
+
+## 2026-05-15 V2.1 Feedback Improvement
+
+### 修改
+
+- `docs/USER_FEEDBACK.md`：整理 V2 用户试用反馈，保留原始反馈含义，并记录 V2.1 处理范围与后续版本方向。
+- `apps/web/src/services/mockPlanner.ts`：优化前端 Mock 推荐数据，增加城市专属 Mock 数据；优化攻略文本演示提取逻辑。
+- `apps/web/src/services/api.ts`：整理 Mock fallback 提示，明确当前为 V2.1 前端 Mock 演示数据。
+- `apps/web/src/types.ts`：整理 Place、TravelPreference、Itinerary 等类型中的中文枚举文案。
+- `apps/web/src/data/questions.ts`：修复问答文案，给预算低 / 中 / 高增加解释。
+- `apps/web/src/components/PlaceRecommendation.vue`：在候选地点区域上方增加数据来源说明。
+- `apps/web/src/components/PlaceCard.vue`：将类型、来源、停留时间、适合场景压缩为标签；地址和避坑提醒改为“详情 / 收起”。
+- `apps/web/src/components/PasteGuidePanel.vue`：优化攻略文本粘贴说明、示例 placeholder 和短文本提示。
+- `apps/web/src/components/GuidedChat.vue`：展示预算选项解释，修复页面中文文案。
+- `apps/web/src/components/AppHeader.vue`、`StartPage.vue`、`PreferenceSummary.vue`、`ItineraryView.vue`、`MapView.vue`：修复页面中文文案，保持 V1/V2 功能不变。
+- `apps/web/src/styles.css`：新增数据来源说明样式、紧凑地点卡片样式、标签样式和手机端按钮/卡片优化。
+- `README.md`：更新为 V2.1 Feedback Improvement，记录本轮优化和天气、预算量化后续计划。
+- `AGENTS.md`：补充用户反馈修改、Mock 数据来源和密钥相关规则。
+
+### 新增或优化的城市专属 Mock 数据
+
+- 张家界
+- 重庆
+- 长沙
+- 上海
+- 北京
+- 杭州
+- 南京
+- 成都
+- 西安
+- 广州
+- 厦门
+
+每个城市提供 8-12 个适合旅行规划演示的地点，覆盖景点、餐厅、商圈、博物馆、夜市、自然风景、交通点或其他类型。其他城市继续使用通用 Mock fallback。
 
 ### 为什么修改
 
-- 让 `apps/web` 可以作为纯静态前端部署到 Vercel / Cloudflare Pages。
-- 确保生产环境默认使用前端 Mock，手机浏览器无需后端即可完整体验 V1 流程。
-- 为后续加入路由预留 SPA fallback。
+- 回应用户对推荐真实感、数据来源、攻略文本提取、手机端浏览长度、天气和预算表达的反馈。
+- 在不接入真实 AI、真实地图、真实天气 API 的前提下，提高 Mock 演示版的可理解性和手机端体验。
 
-### 如何验证
+- 已验证
 
-- 已在 `apps/web` 下运行 `npm.cmd run typecheck`，通过。
-- 已在 `apps/web` 下运行 `npm.cmd run build`，通过。
-- 部署后打开生成的网址，完整测试首页、问答、地点选择、行程生成、地图降级清单和刷新后的本地保存。
+- 已运行 `npm.cmd run typecheck`，通过。
+- 已运行 `npm.cmd run build`，通过。
+- 已清理构建产物 `apps/web/dist`。
+- 已确认没有 `__pycache__`。
+- 已检查未提交真实 API Key；仅存在 `.env.example` / 文档中的空变量名示例。
+- 线上或本地保持 `VITE_USE_MOCK=true`，完整测试首页、问答、候选地点、攻略文本提取、生成行程、地图降级清单和刷新保存。
 
-### 是否影响 V1 原有功能
+### 是否影响 V1/V2 原有功能
 
 - 不影响 V1 本地 Mock 流程。
+- 不破坏 V2 Vercel / Cloudflare Pages 静态部署配置。
 - 不改变 FastAPI 后端骨架。
-- 不接入真实 AI、真实高德地图、登录、数据库或 PWA。
+- 不接入真实 AI、真实高德地图、真实天气、登录、数据库、PWA、Capacitor 或 PDF 导出。
