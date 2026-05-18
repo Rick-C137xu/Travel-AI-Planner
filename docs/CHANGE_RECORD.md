@@ -1,5 +1,25 @@
 # Change Record
 
+## 2026-05-18 V3.0.1 CORS Hotfix
+
+### 修改
+
+- `apps/api/app/main.py`：调整 `ALLOWED_ORIGINS` 解析逻辑，支持逗号分隔域名、自动去掉前后空格并忽略空值；当配置包含 `*` 时固定使用 `allow_origins=["*"]` 且 `allow_credentials=False`；FastAPI app 创建后立即注册 `CORSMiddleware`，保留 `allow_methods=["*"]` 和 `allow_headers=["*"]`，确保线上 Vercel 到 Render 的 `OPTIONS` 预检请求能返回 CORS 头。
+- `apps/api/app/main.py`：新增 `GET /api/debug/cors`，仅返回当前 `allowedOrigins` 和 `allowCredentials`，方便排查 Render 环境变量是否生效，不返回 API Key 或敏感配置。
+- `docs/DEPLOYMENT.md`：补充 V3.0.1 CORS 配置规则、`ALLOWED_ORIGINS=*` 的临时排查行为，以及 `/api/debug/cors` 验证方式。
+
+### 修复原因
+
+- Render 后端被 Vercel 前端调用时，浏览器报错 `No 'Access-Control-Allow-Origin' header is present on the requested resource`，说明预检请求未拿到正确 CORS 响应头。
+- 本次只做 V3 后端跨域 hotfix，不新增前端业务功能，不提交真实 API Key。
+
+### 验证方式
+
+- 在 `apps/api` 运行 `python -m py_compile app/main.py`。
+- 在 `apps/api` 运行 `python -m compileall app`。
+- 如本地前端依赖可用，在 `apps/web` 运行 `npm.cmd run typecheck` 和 `npm.cmd run build`，确认本次后端修复未影响前端构建。
+- Render 重新部署后访问 `/api/debug/cors`，确认 `allowedOrigins` 包含 `https://travel-ai-planner-lake.vercel.app`，再从 Vercel 前端完整测试推荐、攻略提取和行程生成接口。
+
 ## 2026-05-14 V1 MVP
 
 从空目录创建“AI 出行旅游计划助手”V1 MVP。

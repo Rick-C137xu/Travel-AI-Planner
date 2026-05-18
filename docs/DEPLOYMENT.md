@@ -89,6 +89,13 @@ http://127.0.0.1:5173
 
 生产环境不要长期使用 `ALLOWED_ORIGINS=*`。如果临时排查跨域问题使用了 `*`，排查完成后应改回明确的 Vercel 前端域名。
 
+V3.0.1 起，后端会在 FastAPI app 创建后立即注册 `CORSMiddleware`：
+
+- `ALLOWED_ORIGINS="*"` 时使用 `allow_origins=["*"]`，并自动设置 `allow_credentials=False`。
+- `ALLOWED_ORIGINS` 为逗号分隔域名时，会去掉每一项前后空格并忽略空值。
+- `allow_methods=["*"]`、`allow_headers=["*"]`，确保浏览器 `OPTIONS` 预检请求能返回 CORS 头。
+- 可访问 `GET /api/debug/cors` 查看当前后端读取到的 `allowedOrigins` 和 `allowCredentials`，该接口不返回 API Key 或其他敏感配置。
+
 ## Render 部署步骤
 
 推荐配置：
@@ -201,6 +208,14 @@ ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 ```
 
 不要只写域名片段，也不要遗漏 `https://`。
+
+Render 重新部署后，也可以访问：
+
+```text
+https://your-api-service.onrender.com/api/debug/cors
+```
+
+确认返回的 `allowedOrigins` 包含 Vercel 前端完整域名。如果临时设置为 `ALLOWED_ORIGINS=*`，返回的 `allowCredentials` 应为 `false`。
 
 ### 请求 404
 

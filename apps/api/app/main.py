@@ -29,18 +29,21 @@ DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 def get_allowed_origins() -> list[str]:
-    raw_value = os.getenv("ALLOWED_ORIGINS", "")
-    origins = [origin.strip().rstrip("/") for origin in raw_value.split(",") if origin.strip()]
+    raw_value = os.getenv("ALLOWED_ORIGINS", ",".join(DEFAULT_ALLOWED_ORIGINS))
+    origins = [origin.strip() for origin in raw_value.split(",") if origin.strip()]
+    if "*" in origins:
+        return ["*"]
     return origins or DEFAULT_ALLOWED_ORIGINS
 
 
 allowed_origins = get_allowed_origins()
+allow_credentials = "*" not in allowed_origins
 
 app = FastAPI(title="Travel AI Planner API", version=API_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials="*" not in allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -61,6 +64,11 @@ def health() -> dict[str, str]:
 @app.get("/api/health")
 def api_health() -> dict[str, str | bool]:
     return {**health(), "aiEnabled": ai_client.enabled}
+
+
+@app.get("/api/debug/cors")
+def debug_cors() -> dict[str, list[str] | bool]:
+    return {"allowedOrigins": allowed_origins, "allowCredentials": allow_credentials}
 
 
 @app.post("/api/chat/next-question")
