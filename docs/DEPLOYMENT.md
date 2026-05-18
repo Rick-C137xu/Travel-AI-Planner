@@ -1,130 +1,242 @@
-# V2 部署指南
+# V3 部署指南
 
-## V2 部署目标
+## V2 前端静态部署回顾
 
-V2 的目标是把 `apps/web` 作为纯静态前端部署到 Vercel 或 Cloudflare Pages，让手机浏览器可以直接打开并完整体验 Mock 旅行规划流程。
-
-V2 不部署 FastAPI 后端，不接真实 AI API，不接真实高德地图 API，也不需要数据库或登录系统。生产环境默认使用：
+V2 / V2.1 的线上前端部署在 Vercel，`apps/web` 可以作为纯静态站点运行。默认环境变量为：
 
 ```env
 VITE_USE_MOCK=true
+VITE_API_BASE_URL=
 ```
 
-## Vercel 部署步骤
+这种模式不会请求 FastAPI 后端，适合继续演示 V2.1 的前端 Mock 流程。Vercel 核心配置：
 
-1. 登录 Vercel。
-2. 点击 Import GitHub Repository。
-3. 选择 `Travel-AI-Planner` 仓库。
-4. 设置 Root Directory 为 `apps/web`。
-5. Framework Preset 选择 `Vite`。
-6. Build Command 填 `npm run build`。
-7. Output Directory 填 `dist`。
-8. Install Command 填 `npm install`。
-9. 添加环境变量 `VITE_USE_MOCK=true`。
-10. 点击 Deploy。
-11. 打开生成的网址，测试完整 Mock 流程。
+- Root Directory: `apps/web`
+- Framework Preset: `Vite`
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment Variables: `VITE_USE_MOCK=true`
 
-Vercel SPA fallback 已通过 `apps/web/vercel.json` 配置：
+Cloudflare Pages 仍可按 V2 方式部署：
+
+- Root directory: `apps/web`
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Environment variables: `VITE_USE_MOCK=true`
+
+## V3 后端部署目标
+
+V3 把项目升级为前后端分离部署版：
+
+- 前端仍可用 `VITE_USE_MOCK=true` 保持 V2.1 前端 Mock 演示。
+- 前端设置 `VITE_USE_MOCK=false` 后，会请求 `VITE_API_BASE_URL` 指向的 FastAPI 后端。
+- FastAPI 后端部署到 Render 或 Railway，当前仍返回 Mock 数据。
+- V3 不接真实 AI API、真实地图 API、真实天气 API、数据库或登录系统。
+
+## FastAPI 本地运行
+
+Windows:
+
+```bash
+cd apps/api
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+非 Windows:
+
+```bash
+cd apps/api
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+验证：
+
+```text
+http://127.0.0.1:8000/health
+```
+
+应返回：
 
 ```json
 {
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "status": "ok",
+  "service": "travel-ai-planner-api",
+  "version": "v3"
 }
 ```
 
-## Cloudflare Pages 部署步骤
+## CORS 配置
 
-1. 登录 Cloudflare Dashboard。
-2. 在 Workers & Pages / Pages 中创建项目。
-3. 连接 GitHub 仓库。
-4. 设置 Root directory 为 `apps/web`。
-5. Framework preset 选择 `Vite` 或 `None`。
-6. Build command 填 `npm run build`。
-7. Build output directory 填 `dist`。
-8. 添加环境变量 `VITE_USE_MOCK=true`。
-9. 点击 Deploy。
-10. 打开生成的网址，测试完整 Mock 流程。
+后端通过 `ALLOWED_ORIGINS` 配置允许访问的前端来源，支持逗号分隔：
 
-Cloudflare Pages SPA fallback 已通过 `apps/web/public/_redirects` 配置：
+```env
+ALLOWED_ORIGINS=http://localhost:5173,https://travel-ai-planner-lake.vercel.app
+```
+
+未配置时，默认只允许：
 
 ```text
-/* /index.html 200
+http://localhost:5173
+http://127.0.0.1:5173
 ```
 
-## 环境变量设置
+生产环境不要长期使用 `ALLOWED_ORIGINS=*`。如果临时排查跨域问题使用了 `*`，排查完成后应改回明确的 Vercel 前端域名。
 
-V2 生产部署至少需要：
+## Render 部署步骤
+
+推荐配置：
+
+- Service Type: `Web Service`
+- Root Directory: `apps/api`
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Environment Variables:
 
 ```env
-VITE_USE_MOCK=true
+ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 ```
 
-可选变量：
+操作步骤：
+
+1. 登录 Render。
+2. New Web Service，导入 GitHub 仓库 `Travel-AI-Planner`。
+3. 设置 Root Directory 为 `apps/api`。
+4. 设置 Build Command 为 `pip install -r requirements.txt`。
+5. 设置 Start Command 为 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
+6. 添加 `ALLOWED_ORIGINS`，值为 Vercel 前端地址。
+7. 部署完成后打开 `https://your-api-service.onrender.com/health` 验证。
+
+如 Render 需要指定 Python 版本，可在 Render 设置中选择 Python 运行时版本；当前项目暂不强制新增 `runtime.txt`。
+
+## Railway 部署步骤
+
+推荐配置：
+
+- 从 GitHub 导入 `Travel-AI-Planner` 仓库。
+- 服务根目录设置为 `apps/api`。
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Environment Variables:
 
 ```env
-VITE_API_BASE_URL=
-VITE_AMAP_KEY=
-VITE_AMAP_SECURITY_CODE=
+ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
+```
+
+操作步骤：
+
+1. 登录 Railway。
+2. New Project，从 GitHub 导入仓库。
+3. 选择或设置服务根目录为 `apps/api`。
+4. 如果 Railway 自动识别 Python 项目，仍要检查 Start Command 是否为 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
+5. 添加 `ALLOWED_ORIGINS`，值为 Vercel 前端地址。
+6. 部署完成后打开后端域名的 `/health` 验证。
+
+## Vercel 前端切换到后端模式
+
+在 Vercel 的 `apps/web` 项目中设置：
+
+```env
+VITE_USE_MOCK=false
+VITE_API_BASE_URL=https://your-api-service.onrender.com
 ```
 
 说明：
 
-- `VITE_USE_MOCK=true` 时，前端不会请求 FastAPI。
-- `VITE_API_BASE_URL` 在 V2 静态部署中可以留空。
-- `VITE_AMAP_KEY` 留空时，地图区域会显示降级地点清单。
-- 不要在 Vercel、Cloudflare 配置文件或仓库中写入真实 Key。
+- `VITE_API_BASE_URL` 不要以 `/api` 结尾，直接填写后端根地址。
+- 地址末尾带不带 `/` 都可以，前端会自动去掉末尾斜杠。
+- 修改 Vercel 环境变量后必须重新部署前端，新的构建才会生效。
+- 如果后端请求失败，页面会显示 warning，并回退到前端 Mock 数据，避免白屏。
 
-## 如何确认部署成功
+## 本地前后端联调
 
-部署完成后，用桌面浏览器和手机浏览器分别打开部署地址，确认以下流程可走通：
+1. 启动后端：
 
-1. 首页显示“AI 出行旅游计划助手”。
-2. 点击“开始规划”。
-3. 完成问答式需求收集。
-4. 进入候选地点推荐页。
-5. 对地点选择“想去 / 备选 / 不想去”。
-6. 点击生成行程。
-7. 页面展示 Day 1、Day 2 等每日行程。
-8. 地图区域在未配置高德 Key 时显示降级地点清单。
-9. 刷新页面后，`localStorage` 中的计划仍然保留。
+```bash
+cd apps/api
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. 在项目根目录 `.env` 设置：
+
+```env
+VITE_USE_MOCK=false
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_AMAP_KEY=
+```
+
+3. 启动前端：
+
+```bash
+cd apps/web
+npm.cmd run dev
+```
+
+4. 打开 `http://localhost:5173`，完整测试问答、候选地点、攻略文本提取、行程生成和地图降级地点清单。
+
+## 如何验证部署成功
+
+1. 打开后端 `/health`，确认返回 `status: ok` 和 `version: v3`。
+2. 在 Vercel 设置 `VITE_USE_MOCK=false`。
+3. 在 Vercel 设置 `VITE_API_BASE_URL=<Render 或 Railway 后端地址>`。
+4. 在后端设置 `ALLOWED_ORIGINS=<Vercel 前端地址>`。
+5. 重新部署 Vercel 前端。
+6. 打开线上前端，完整测试问答、推荐、攻略文本提取、行程生成。
+7. 临时关闭或填错后端地址，确认页面会提示后端失败并回退到前端 Mock。
 
 ## 常见问题
 
-### 部署后刷新页面 404
+### CORS 报错
 
-确认 Vercel 使用了 `apps/web/vercel.json`，Cloudflare Pages 使用了 `apps/web/public/_redirects`。这两个文件用于 SPA fallback。
-
-### 页面请求后端失败
-
-V2 默认不需要后端。确认生产环境变量设置为：
+确认后端 `ALLOWED_ORIGINS` 包含完整 Vercel 前端地址，例如：
 
 ```env
-VITE_USE_MOCK=true
+ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 ```
 
-### 地图没有显示真实地图
+不要只写域名片段，也不要遗漏 `https://`。
 
-V2 默认不配置真实高德地图 Key。未配置 `VITE_AMAP_KEY` 时，页面会显示降级地点清单，这是预期行为。
+### 请求 404
 
-### 手机页面按钮换行
+确认 `VITE_API_BASE_URL` 是后端根地址，例如：
 
-这是预期的移动端布局。V2 优先保证手机可用和不横向溢出，按钮在窄屏会自动换行。
+```env
+VITE_API_BASE_URL=https://your-api-service.onrender.com
+```
 
-## 为什么 V2 不部署 FastAPI 后端
+不要写成 `https://your-api-service.onrender.com/api`。
 
-V2 的重点是先把 Mock 版体验放到线上，让用户可以通过手机浏览器完整体验产品流程。这样可以更快验证页面流程、文案、交互和行程结构，不必先处理后端部署、AI Key、地图 Key、跨域和服务稳定性。
+### 502 或后端未启动
 
-## V3 才会部署 FastAPI 后端
+检查 Render / Railway 的 Start Command 是否为：
 
-V3 可以开始考虑：
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
 
-- 部署 FastAPI 后端。
-- 接入真实 AI API。
-- 增加服务端 Prompt 和 JSON 容错监控。
-- 接入真实地点地理编码。
-- 增加路线规划和交通时间估算。
+同时查看平台日志，确认依赖安装完成且 `apps/api` 是服务根目录。
+
+### Vercel 环境变量修改后没有生效
+
+Vite 会在构建时注入 `VITE_*` 变量。修改 Vercel 环境变量后，需要重新部署前端。
+
+### 后端地址末尾是否带斜杠
+
+可以带也可以不带。前端会把 `VITE_API_BASE_URL` 末尾的 `/` 去掉，再拼接 `/api/...`。
+
+### 本地能跑但线上不能跑
+
+优先检查：
+
+- Render / Railway Root Directory 是否为 `apps/api`。
+- Start Command 是否使用 `$PORT`。
+- 后端 `/health` 是否能打开。
+- Vercel `VITE_API_BASE_URL` 是否指向线上后端。
+- 后端 `ALLOWED_ORIGINS` 是否包含 Vercel 前端地址。
+- Vercel 修改环境变量后是否重新部署。

@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V2.1 Feedback Improvement，前端可作为纯静态站点部署到 Vercel / Cloudflare Pages。
+本项目是“AI 出行旅游计划助手”。当前版本为 V3 Backend Deploy Ready，前端可作为纯静态站点部署到 Vercel / Cloudflare Pages，后端 FastAPI 可部署到 Render / Railway。
 
 后续 agent 修改项目时请遵守以下规则：
 
@@ -17,3 +17,6 @@
 11. 高德地图 Key 缺失或加载失败时必须降级展示地点清单，不能影响主流程。
 12. 不要实现自动爬取小红书等违反平台规则的爬虫；只允许用户手动粘贴攻略文本后进行提取。
 13. 提交前尽量运行前端 `npm.cmd run typecheck` 和 `npm.cmd run build`；如果无法运行，说明原因和风险。
+14. V3 起允许部署 FastAPI 后端，但后端仍必须保留 Mock 降级；后端部署相关修改必须同步更新 `docs/DEPLOYMENT.md` 和 `docs/CHANGE_RECORD.md`。
+15. 环境变量示例文件可以提交，真实 `.env`、真实 API Key、Render / Railway / Vercel 私密配置不得提交，也不得写死到代码中。
+16. Mock 数据不得声称来自真实平台；如果展示来源，必须明确是 Mock 数据、用户粘贴文本或后续真实 API 能力。

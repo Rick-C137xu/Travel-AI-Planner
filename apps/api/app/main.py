@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -22,11 +23,24 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv()
 
-app = FastAPI(title="Travel AI Planner API", version="0.1.0")
+API_VERSION = "v3"
+SERVICE_NAME = "travel-ai-planner-api"
+DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def get_allowed_origins() -> list[str]:
+    raw_value = os.getenv("ALLOWED_ORIGINS", "")
+    origins = [origin.strip().rstrip("/") for origin in raw_value.split(",") if origin.strip()]
+    return origins or DEFAULT_ALLOWED_ORIGINS
+
+
+allowed_origins = get_allowed_origins()
+
+app = FastAPI(title="Travel AI Planner API", version=API_VERSION)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials="*" not in allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -34,9 +48,19 @@ app.add_middleware(
 ai_client = AIClient()
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"message": "Travel AI Planner API", "version": API_VERSION}
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": SERVICE_NAME, "version": API_VERSION}
+
+
 @app.get("/api/health")
-def health() -> dict[str, str | bool]:
-    return {"status": "ok", "aiEnabled": ai_client.enabled}
+def api_health() -> dict[str, str | bool]:
+    return {**health(), "aiEnabled": ai_client.enabled}
 
 
 @app.post("/api/chat/next-question")

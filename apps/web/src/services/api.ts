@@ -2,6 +2,14 @@ import type { ApiEnvelope, DayPlan, Place, TravelPreference } from '@/types';
 import { mockExtractPlaces, mockGenerateItinerary, mockRecommendPlaces } from './mockPlanner';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+
+function apiUrl(path: string) {
+  if (!apiBaseUrl) {
+    throw new Error('未配置 VITE_API_BASE_URL，无法请求后端。');
+  }
+  return `${apiBaseUrl}${path}`;
+}
 
 async function postJson<T>(url: string, body: unknown): Promise<ApiEnvelope<T>> {
   const response = await fetch(url, {
@@ -33,21 +41,21 @@ async function withFallback<T>(request: () => Promise<ApiEnvelope<T>>, fallback:
 
 export function recommendPlaces(preference: TravelPreference, guideText = '') {
   return withFallback(
-    () => postJson<Place[]>('/api/places/recommend', { preference, guideText }),
+    () => postJson<Place[]>(apiUrl('/api/places/recommend'), { preference, guideText }),
     () => mockRecommendPlaces(preference, guideText)
   );
 }
 
 export function extractPlaces(preference: TravelPreference, text: string) {
   return withFallback(
-    () => postJson<Place[]>('/api/places/extract', { preference, text }),
+    () => postJson<Place[]>(apiUrl('/api/places/extract'), { preference, text }),
     () => mockExtractPlaces(preference, text)
   );
 }
 
 export function generateItinerary(preference: TravelPreference, places: Place[]) {
   return withFallback(
-    () => postJson<DayPlan[]>('/api/itinerary/generate', { preference, places }),
+    () => postJson<DayPlan[]>(apiUrl('/api/itinerary/generate'), { preference, places }),
     () => mockGenerateItinerary(preference, places)
   );
 }

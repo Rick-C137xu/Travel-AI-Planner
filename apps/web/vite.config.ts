@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const projectRoot = resolve(webRoot, '../..');
   const env = loadEnv(mode, projectRoot, '');
   return {
+    root: webRoot,
     envDir: projectRoot,
     plugins: [vue()],
     build: {
