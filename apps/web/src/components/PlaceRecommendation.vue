@@ -15,16 +15,22 @@ const sourceNote = computed(() => {
   if (isFrontendMockMode) {
     return '当前为 V2.1 / 前端 Mock 演示数据，未请求后端。地点推荐来自前端内置 Mock 数据，用于展示规划流程。';
   }
-  if (state.backendConnected && state.aiEnabled === false) {
-    return '当前为 V3 后端模式，后端已连接成功；由于后端未配置 AI_API_KEY，暂时返回后端 Mock 数据。';
+  if (!state.backendConnected) {
+    if (state.dataSourceLabel === '前端 Mock') {
+      return '当前为 V4 后端模式，但后端请求失败，已降级为前端 Mock 数据。';
+    }
+    return '当前为 V4 后端模式，正在请求后端推荐接口。';
   }
-  if (state.backendConnected) {
-    return '当前为 V3 后端模式，后端已连接成功。真实 AI 与地图数据源将在 V4 接入。';
+  if (state.aiEnabled && state.amapEnabled) {
+    return '当前为 V4 真实 AI + 高德模式：候选地点由高德地图返回真实 POI，并由 AI 补充推荐文案。';
   }
-  if (state.dataSourceLabel === '前端 Mock') {
-    return '当前为 V3 后端模式，但后端请求失败，已降级为前端 Mock 数据。';
+  if (state.amapEnabled) {
+    return '当前为 V4 高德模式：候选地点来自高德 POI 搜索；后端未配置 AI_API_KEY，文案为模板生成。';
   }
-  return '当前为 V3 后端模式，正在请求后端推荐接口。';
+  if (state.aiEnabled) {
+    return '当前为 V4 AI 生成模式：地点由 AI 生成，未经过高德地图校验，请人工核对营业信息。';
+  }
+  return '当前为 V3 后端 Mock 模式：后端已连接成功，但未配置 AI_API_KEY 与 AMAP_KEY，返回后端 Mock 数据。';
 });
 
 async function loadPlaces() {

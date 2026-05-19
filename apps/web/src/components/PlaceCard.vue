@@ -14,11 +14,12 @@ const shortReason = computed(() => {
   return reason.length > 54 ? `${reason.slice(0, 54)}...` : reason;
 });
 const sourceLabel = computed(() => {
-  if (props.place.source === 'Mock数据') {
+  const raw = props.place.source;
+  if (raw === 'Mock数据') {
     if (isFrontendMockMode || state.dataSourceLabel === '前端 Mock') return '前端 Mock';
-    if (state.backendConnected && state.aiEnabled === false) return '后端 Mock';
+    if (state.backendConnected && state.aiEnabled === false && state.amapEnabled === false) return '后端 Mock';
   }
-  return props.place.source;
+  return raw;
 });
 </script>
 

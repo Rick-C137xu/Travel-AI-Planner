@@ -17,9 +17,15 @@ const stepText: Record<AppStep, string> = {
 };
 
 const versionLabel = computed(() => {
-  if (isFrontendMockMode) return 'Travel AI Planner · V2.1 Mock';
-  if (state.backendConnected && state.aiEnabled === false) return 'Travel AI Planner · V3 Backend Mock';
-  return 'Travel AI Planner · V3 Backend';
+  if (isFrontendMockMode) return 'Travel AI Planner · V2.1 Frontend Mock';
+  if (!state.backendConnected) {
+    if (state.dataSourceLabel === '前端 Mock') return 'Travel AI Planner · Backend Failed → Frontend Mock';
+    return 'Travel AI Planner · V4';
+  }
+  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4 AI + Amap';
+  if (state.amapEnabled) return 'Travel AI Planner · V4 Amap';
+  if (state.aiEnabled) return 'Travel AI Planner · V4 AI';
+  return 'Travel AI Planner · V3 Backend Mock';
 });
 </script>
 

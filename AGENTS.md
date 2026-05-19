@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V3 Backend Connected，前端可作为纯静态站点部署到 Vercel / Cloudflare Pages，后端 FastAPI 可部署到 Render / Railway；Vercel 前端已经可以请求 Render 后端。
+本项目是“AI 出行旅游计划助手”。当前版本为 V4.0 Real AI + Amap Integration Ready：后端在 V3 部署链路基础上新增 AI（OpenAI-compatible）与高德 Web 服务封装，未配置 `AI_API_KEY` / `AMAP_KEY` 时仍走后端 Mock 降级。Vercel 前端继续请求 Render 后端，前端会按 envelope 中的 `aiEnabled / amapEnabled` 显示不同版本签。
 
 后续 agent 修改项目时请遵守以下规则：
 

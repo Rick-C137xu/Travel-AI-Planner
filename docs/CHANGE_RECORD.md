@@ -1,5 +1,66 @@
 # Change Record
 
+## 2026-05-19 V4.0 Real AI + Amap Integration Ready
+
+### 新增
+
+- `apps/api/app/config.py`：新增 V4 后端 Settings，集中读取 `AI_PROVIDER / AI_API_KEY / AI_BASE_URL / AI_MODEL / AMAP_KEY / ALLOWED_ORIGINS`，并暴露 `ai_enabled / amap_enabled / data_mode`。
+- `apps/api/app/services/__init__.py`：新增 services 包入口。
+- `apps/api/app/services/ai_client.py`：V4 AI 调用封装，OpenAI-compatible Chat Completions，所有外部请求带 timeout，所有异常被捕获并降级返回 warning。
+- `apps/api/app/services/amap_client.py`：V4 高德 Web 服务封装，POI 关键字搜索 (`/v3/place/text`)，失败时返回空列表由上层降级。
+- `apps/api/app/services/planner_service.py`：V4 规划编排层，根据 `aiEnabled / amapEnabled` 选择「AI+高德 / 高德 / AI / 后端 Mock」四种运行模式；包含基于经纬度的最近邻排序、AI 关键词生成、AI 注释 POI、AI 攻略文本提取、AI 行程生成等逻辑，全部带 fallback。
+
+### 修改
+
+- `apps/api/app/main.py`：使用 `Settings + PlannerService`，路由变为薄封装；新增 `GET /api/debug/config`（仅返回非敏感配置：service / version / aiProvider / aiEnabled / amapEnabled / allowedOrigins / dataMode，不返回任何 Key）；`GET /api/health` 增加 `amapEnabled / dataMode`；版本号升级为 `v4`。
+- `apps/api/app/ai_client.py`：保留为向后兼容入口，转发到 `app.services.ai_client.AIClient`，避免外部代码因为路径迁移直接报错。
+- `apps/api/app/models.py`：`PlaceSource` 由 Literal 放宽为 `str` 以容纳「高德地图」「AI + 高德」「规则 + 高德 提取」等新值；`ApiEnvelope` 新增 `amapEnabled` 字段。
+- `apps/web/src/types.ts`：`ApiEnvelope` 新增 `amapEnabled?: boolean`。
+- `apps/web/src/store/usePlannerStore.ts`：`PlannerState` 新增 `amapEnabled`；`updateRuntimeStatus` 同步该字段；默认数据来源标签升级为 `V4 后端`。
+- `apps/web/src/services/api.ts`：`normalizeBackendResponse` 根据 `aiEnabled / amapEnabled` 推导 `dataSourceLabel`（真实 AI + 高德 / 高德地图 / AI 生成 / 后端 Mock）。
+- `apps/web/src/components/AppHeader.vue`：版本签升级为五种状态：`V2.1 Frontend Mock / V4 AI + Amap / V4 Amap / V4 AI / V3 Backend Mock / Backend Failed → Frontend Mock`。
+- `apps/web/src/components/PlaceRecommendation.vue`：候选地点页顶部说明按 V4 四种模式展示。
+- `apps/web/src/components/PlaceCard.vue`：`source = "Mock数据"` 仅在「都没有 Key」时才映射为「后端 Mock」；其余直接展示后端真实标签（如「高德地图」「AI + 高德」）。
+- `apps/web/src/components/PasteGuidePanel.vue`：粘贴攻略面板说明按 V4 模式展示「V4 AI 提取 / V4 AI + 高德 提取 / V4 后端规则 + 高德 提取 / V3 后端 Mock 提取」。
+- `apps/web/src/components/ItineraryView.vue`：行程页新增「行程来源」一行，区分 AI / 高德排序 / Mock。
+- `.env.example`、`apps/api/.env.example`：新增 V4 推荐变量 `AI_PROVIDER / AI_BASE_URL / AI_MODEL / AI_API_KEY / AMAP_KEY` 占位。
+- `README.md`、`docs/DEPLOYMENT.md`、`AGENTS.md`：更新版本号 V4，记录四种运行模式、`/api/debug/config` 验证方式、Render 推荐环境变量、未配置 Key 时的降级行为。
+
+### AI 接入方式
+
+- 协议：OpenAI-compatible `POST {AI_BASE_URL}/chat/completions`，`response_format={"type":"json_object"}`。
+- Key 仅从 `AI_API_KEY` 环境变量读取，不写入代码、不打印、不在 `/api/debug/config` 返回。
+- 所有 `httpx.AsyncClient` 请求带 timeout（默认 45s），异常时返回 `(None, warning)` 由 `PlannerService` 降级。
+- AI 输出严格按 JSON 解析，含 ```json ... ``` 围栏的也能 parse；解析失败时单条丢弃，不会让前端崩。
+
+### 高德地图接入方式
+
+- 仅使用文档化的高德 Web 服务 `https://restapi.amap.com/v3/place/text`，超时 12s。
+- Key 仅从 `AMAP_KEY` 环境变量读取，不写入代码。
+- 前端不会直接请求高德接口，所有调用都经过后端，避免 Key 暴露。
+- 失败 / 非 1 状态码 / JSON 解析失败时返回空列表，由 `PlannerService` 走规则关键词或 Mock 降级。
+
+### 降级策略
+
+- AI 失败：返回 `dataSourceLabel="后端 Mock"`，warning 说明降级原因；不抛堆栈给前端。
+- 高德返回空：尝试规则关键词；仍失败则走 `mock_places`。
+- AI + 高德都启用但 AI 注释失败：使用模板文案 + 真 POI，`dataSourceLabel="AI + 高德"`。
+- AI + 高德都未配置：保留 V3 后端 Mock 行为，返回「后端已连接成功，但未配置 AI_API_KEY 与 AMAP_KEY，当前使用后端 Mock 数据」。
+
+### 测试结果
+
+- `python -m py_compile app/main.py app/config.py app/services/ai_client.py app/services/amap_client.py app/services/planner_service.py app/ai_client.py app/models.py`：通过。
+- `python -m compileall app`：通过。
+- `npm.cmd run typecheck`：通过。
+- `npm.cmd run build`：通过（dist/index 95.41 kB / gzip 42.39 kB）。
+- 本地 `uvicorn` 启动验证未执行：当前 `apps/api/.venv` 中缺少 `python-dotenv` 等依赖，且沙箱无法稳定 `pip install`；建议在 Render 重新部署后通过 `/api/health` 与 `/api/debug/config` 验证运行模式。
+
+### 未完成内容
+
+- 高德地理编码 (geocode)、路径规划 (direction) 暂未接入，仅做了 POI 文本搜索；行程顺序基于 POI 经纬度做最近邻排序，未做真实驾车 / 步行路径。
+- AI 关键词生成 + AI 注释会发起 2 次 AI 请求，未做缓存，频繁请求会增加成本，后续可考虑短时缓存或合并 prompt。
+- `app/ai_client.py` 仅保留为兼容层，下个迭代可视情况删除。
+
 ## 2026-05-19 V3.0.3 Backend Mock Source Label Hotfix
 
 ### 修改

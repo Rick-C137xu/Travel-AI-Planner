@@ -1,11 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { generateItinerary } from '@/services/api';
+import { generateItinerary, isFrontendMockMode } from '@/services/api';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
 const { state, updateRuntimeStatus } = usePlannerStore();
 const loading = ref(false);
 const selectedPlaces = computed(() => state.places.filter((place) => place.userStatus === 'want'));
+const itinerarySource = computed(() => {
+  if (isFrontendMockMode) return '前端 Mock 行程模板';
+  if (!state.backendConnected) {
+    return state.dataSourceLabel === '前端 Mock' ? '后端请求失败 → 前端 Mock' : 'V4 后端';
+  }
+  if (state.aiEnabled && state.amapEnabled) return 'V4 真实 AI + 高德（按经纬度排序后由 AI 生成行程文案）';
+  if (state.amapEnabled) return 'V4 高德排序 + 后端 Mock 行程模板';
+  if (state.aiEnabled) return 'V4 AI 行程文案（无地图校验）';
+  return 'V3 后端 Mock 行程';
+});
 
 function removeItem(day: number, itemId: string) {
   state.itinerary = state.itinerary.map((plan) =>
@@ -43,6 +53,7 @@ async function regenerate() {
         </button>
       </div>
     </div>
+    <p class="source-note">行程来源：{{ itinerarySource }}</p>
     <p v-if="state.warning" class="warning-banner">{{ state.warning }}</p>
     <div v-if="!state.itinerary.length" class="empty-state">还没有行程，请先选择想去的地点。</div>
     <article v-for="day in state.itinerary" :key="day.day" class="day-card">

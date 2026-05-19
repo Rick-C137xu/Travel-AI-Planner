@@ -54,6 +54,7 @@ export interface ApiEnvelope<T> {
   warning?: string;
   dataSourceLabel?: string;
   aiEnabled?: boolean;
+  amapEnabled?: boolean;
   backendMode?: boolean;
 }
 

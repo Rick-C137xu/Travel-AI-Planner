@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 Pace = Literal["relaxed", "normal", "intense"]
 BudgetLevel = Literal["low", "medium", "high"]
 PlaceType = Literal["景点", "餐厅", "商圈", "博物馆", "夜市", "自然风景", "交通点", "其他"]
-PlaceSource = Literal["AI推荐", "用户粘贴攻略", "Mock数据", "前端 Mock", "后端 Mock"]
+# V4 起允许真实数据源标签，例如「高德地图」「AI + 高德」，仍兼容旧值。
+PlaceSource = str
 PlaceStatus = Literal["want", "reject", "backup"]
 
 
@@ -62,6 +63,7 @@ class ApiEnvelope(BaseModel):
     warning: str | None = None
     dataSourceLabel: str | None = None
     aiEnabled: bool | None = None
+    amapEnabled: bool | None = None
     backendMode: bool | None = None
 
 

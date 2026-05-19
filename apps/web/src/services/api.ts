@@ -26,7 +26,14 @@ async function postJson<T>(url: string, body: unknown): Promise<ApiEnvelope<T>> 
 }
 
 function mockEnvelope<T>(data: T, warning?: string): ApiEnvelope<T> {
-  return { data, warning, dataSourceLabel: '前端 Mock', aiEnabled: false, backendMode: false };
+  return {
+    data,
+    warning,
+    dataSourceLabel: '前端 Mock',
+    aiEnabled: false,
+    amapEnabled: false,
+    backendMode: false
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -35,10 +42,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeBackendResponse<T>(response: ApiEnvelope<T>): ApiEnvelope<T> {
   const backendMode = response.backendMode ?? true;
-  const aiEnabled = response.aiEnabled;
+  const aiEnabled = response.aiEnabled === true;
+  const amapEnabled = response.amapEnabled === true;
   const isBackendMock =
-    aiEnabled === false || Boolean(response.warning && response.warning.includes('AI_API_KEY'));
-  const dataSourceLabel = response.dataSourceLabel || (isBackendMock ? '后端 Mock' : 'V3 后端');
+    !aiEnabled && !amapEnabled
+    && (response.aiEnabled === false || Boolean(response.warning && response.warning.includes('AI_API_KEY')));
+
+  let dataSourceLabel = response.dataSourceLabel || '';
+  if (!dataSourceLabel) {
+    if (aiEnabled && amapEnabled) dataSourceLabel = '真实 AI + 高德';
+    else if (amapEnabled) dataSourceLabel = '高德地图';
+    else if (aiEnabled) dataSourceLabel = 'AI 生成';
+    else if (isBackendMock) dataSourceLabel = '后端 Mock';
+    else dataSourceLabel = 'V4 后端';
+  }
 
   if (isBackendMock && Array.isArray(response.data)) {
     response.data = response.data.map((item) => {
@@ -49,7 +66,7 @@ function normalizeBackendResponse<T>(response: ApiEnvelope<T>): ApiEnvelope<T> {
     }) as T;
   }
 
-  return { ...response, backendMode, dataSourceLabel };
+  return { ...response, backendMode, aiEnabled, amapEnabled, dataSourceLabel };
 }
 
 async function withFallback<T>(request: () => Promise<ApiEnvelope<T>>, fallback: () => T): Promise<ApiEnvelope<T>> {

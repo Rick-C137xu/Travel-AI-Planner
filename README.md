@@ -1,6 +1,6 @@
 # AI 出行旅游计划助手
 
-当前版本：V3 Backend Connected
+当前版本：V4.0 Real AI + Amap Integration Ready
 
 这是一个网页端旅行规划 MVP。用户通过问答收集旅行需求，系统推荐候选地点，用户选择想去、备选或不想去，再生成每日行程，并在地图区域显示地点清单或地图降级视图。
 
@@ -10,8 +10,16 @@
 - V2：前端可部署到 Vercel / Cloudflare Pages，手机浏览器可直接体验。
 - V2.1：根据用户反馈优化 Mock 推荐、数据来源说明、攻略文本演示提取和手机端候选地点卡片。
 - V3：FastAPI 后端已完成 Render 部署联通验证，前端可通过 `VITE_USE_MOCK=false` 请求线上后端 API。
+- V4：后端新增 AI 调用封装（OpenAI-compatible）与高德 Web 服务封装。配置了 `AI_API_KEY` 和 `AMAP_KEY` 后，推荐接口会返回真实 POI + AI 推荐文案；未配置时仍返回后端 Mock 数据。
 
-V3 的重点是完成前后端分离部署链路。当前如果后端未配置 `AI_API_KEY`，接口会返回后端 Mock 数据，并在前端显示为“V3 Backend Mock”或“后端 Mock”，这表示后端已连接成功但尚未启用真实 AI。真实 AI 和地图能力留到 V4，天气和预算量化等能力留到 V5。
+V4 运行模式以后端环境变量为准：
+
+- `AI_API_KEY` + `AMAP_KEY`两个都有 → `dataMode = “真实 AI + 高德”`，高德返回真 POI，AI 补推荐文案。
+- 仅 `AMAP_KEY` → `dataMode = “高德地图”`，使用高德 POI，推荐文案为模板生成。
+- 仅 `AI_API_KEY` → `dataMode = “AI 生成”`，AI 生成候选地点，warning 会说明未经过高德校验。
+- 都没有 → `dataMode = “后端 Mock”`，返回后端 Mock 数据（与 V3 一致）。
+
+可访问 `GET /api/debug/config` 查看当前 `aiEnabled / amapEnabled / dataMode`，该接口不返回任何 Key。
 
 ## 技术栈
 
@@ -108,14 +116,16 @@ npm.cmd run dev
 
 ## 后端接口
 
-V3 后端新增或确认以下接口：
+V4 后端接口：
 
 - `GET /`：返回 API 名称和版本。
 - `GET /health`：返回服务健康状态。
-- `GET /api/health`：返回服务健康状态和 AI 是否启用。
-- `POST /api/places/recommend`：返回 Mock 候选地点。
-- `POST /api/places/extract`：根据用户粘贴文本返回 Mock 提取地点。
-- `POST /api/itinerary/generate`：返回 Mock 行程。
+- `GET /api/health`：返回 `aiEnabled / amapEnabled / dataMode`。
+- `GET /api/debug/cors`：返回当前 CORS 配置（不含 Key）。
+- `GET /api/debug/config`：返回非敏感运行时配置（`service / version / aiProvider / aiEnabled / amapEnabled / allowedOrigins / dataMode`），不返回任何 Key。
+- `POST /api/places/recommend`：根据运行模式返回 高德+AI / 高德 / AI / 后端 Mock 候选地点。
+- `POST /api/places/extract`：AI 提取粘贴文本里的地点，有 `AMAP_KEY` 时补齐地址与经纬度；无 AI 时走后端规则提取。
+- `POST /api/itinerary/generate`：有 AI 时生成自然语言行程；有高德时优先按经纬度顺序排序地点。
 
 ## 线上部署
 
@@ -135,11 +145,21 @@ VITE_USE_MOCK=false
 VITE_API_BASE_URL=https://your-api-service.onrender.com
 ```
 
-FastAPI 后端推荐部署到 Render 或 Railway。后端需要设置：
+FastAPI 后端推荐部署到 Render（或 Railway）。V4 后端推荐环境变量：
 
 ```env
 ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
+AI_PROVIDER=openai-compatible
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4.1-mini
+AI_API_KEY=不要写入仓库，只在 Render 后台配置
+AMAP_KEY=不要写入仓库，只在 Render 后台配置
 ```
+
+验证是否真的启用了 AI / 高德：
+
+1. 访问 `https://travel-ai-planner-api.onrender.com/api/debug/config`，查看 `aiEnabled` 与 `amapEnabled` 是否为 `true`，`dataMode` 是否为 “真实 AI + 高德”。
+2. 在前端 Network 中查看 `POST /api/places/recommend` 返回体里的 `dataSourceLabel`，以及顶部版本签（例如 `V4 AI + Amap`）。
 
 当前线上联通验证方式：
 
@@ -190,8 +210,6 @@ npm run build
 
 ## 后续计划
 
-- V4：接入真实 AI API，优化地点推荐和攻略文本解析。
-- V4：接入真实地图地点搜索、地理编码和路线规划。
-- V5：接入天气预报，增加雨天备选和户外风险提醒。
-- V5：增加人均预算、每日预算、餐饮、交通、门票等量化输入。
-- 后续：拖拽调整行程顺序、导出和分享能力。
+- V4 (current)：接入真实 AI API、高德 POI 搜索；保留后端 Mock 降级。
+- V5：接入天气预报，增加雨天备选和户外风险提醒；增加人均预算、每日预算、餐饮、交通、门票等量化输入。
+- 后续：高德路线规划、拖拽调整行程顺序、导出和分享能力。

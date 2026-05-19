@@ -1,4 +1,4 @@
-# V3 部署指南
+# V4 部署指南
 
 ## V2 前端静态部署回顾
 
@@ -118,11 +118,18 @@ V3.0.2 起，后端会在 FastAPI app 创建后立即注册 `CORSMiddleware`：
 - Root Directory: `apps/api`
 - Build Command: `pip install -r requirements.txt`
 - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Environment Variables:
+- Environment Variables（V4 推荐）：
 
 ```env
 ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
+AI_PROVIDER=openai-compatible
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4.1-mini
+AI_API_KEY=不要写入仓库，只在 Render 后台配置
+AMAP_KEY=不要写入仓库，只在 Render 后台配置
 ```
+
+`AI_API_KEY` / `AMAP_KEY` 任意一个未配置，对应能力会自动降级为后端 Mock，并在响应 envelope 的 `warning` 中说明降级原因；前端不会因此白屏。
 
 操作步骤：
 
@@ -132,7 +139,9 @@ ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 4. 设置 Build Command 为 `pip install -r requirements.txt`。
 5. 设置 Start Command 为 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
 6. 添加 `ALLOWED_ORIGINS`，值为 Vercel 前端地址。
-7. 部署完成后打开 `https://your-api-service.onrender.com/health` 验证。
+7. 如果要启用真实 AI / 高德，添加 `AI_API_KEY` 和 `AMAP_KEY`（其它 AI_* 变量按需配置）。
+8. 部署完成后打开 `https://your-api-service.onrender.com/health` 验证。
+9. 访问 `/api/debug/config`，确认 `aiEnabled` / `amapEnabled` / `dataMode` 与预期一致。该接口只暴露非敏感信息，不返回任何 Key。
 
 修改 Render 环境变量后必须重新部署后端，新的 `ALLOWED_ORIGINS` 才会被运行中的 FastAPI 进程读取。
 
@@ -209,11 +218,17 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 
 ## 数据来源显示规则
 
-前端会区分三种状态：
+前端 Header 与各页面会按以下顺序判断展示标签：
 
-1. `VITE_USE_MOCK=true`：纯前端 Mock，页面显示“V2.1 Mock”或“前端 Mock”，不会请求后端。
-2. `VITE_USE_MOCK=false` 且后端返回 2xx：V3 后端模式。若后端未配置 `AI_API_KEY`，页面显示“V3 Backend Mock”或“后端 Mock”。
-3. `VITE_USE_MOCK=false` 且请求失败：降级为前端 Mock，页面显示“后端请求失败，已降级为前端 Mock 数据”。
+1. `VITE_USE_MOCK=true`：`V2.1 Frontend Mock`，不会请求后端。
+2. `VITE_USE_MOCK=false` 且请求失败：`Backend Failed → Frontend Mock`。
+3. `VITE_USE_MOCK=false` 且后端返回 2xx，根据 envelope 中的 `aiEnabled / amapEnabled`：
+   - `aiEnabled=true && amapEnabled=true` → `V4 AI + Amap`，`dataSourceLabel="真实 AI + 高德"`。
+   - `aiEnabled=false && amapEnabled=true` → `V4 Amap`，`dataSourceLabel="高德地图"`。
+   - `aiEnabled=true && amapEnabled=false` → `V4 AI`，`dataSourceLabel="AI 生成"`。
+   - 都为 false → `V3 Backend Mock`，`dataSourceLabel="后端 Mock"`。
+
+`/api/debug/config` 是判断当前后端能力的权威接口；前端 envelope 字段是判断每次请求实际走了哪条降级路径的权威字段。
 
 ## 本地前后端联调
 

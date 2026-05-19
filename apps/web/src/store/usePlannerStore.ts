@@ -27,6 +27,7 @@ export interface PlannerState {
   warning: string;
   backendConnected: boolean;
   aiEnabled: boolean | null;
+  amapEnabled: boolean | null;
   dataSourceLabel: string;
 }
 
@@ -45,6 +46,7 @@ function loadState(): PlannerState {
       warning: parsed.warning || '',
       backendConnected: parsed.backendConnected || false,
       aiEnabled: typeof parsed.aiEnabled === 'boolean' ? parsed.aiEnabled : null,
+      amapEnabled: typeof parsed.amapEnabled === 'boolean' ? parsed.amapEnabled : null,
       dataSourceLabel: parsed.dataSourceLabel || ''
     };
   } catch {
@@ -58,6 +60,7 @@ function loadState(): PlannerState {
       warning: '',
       backendConnected: false,
       aiEnabled: null,
+      amapEnabled: null,
       dataSourceLabel: ''
     };
   }
@@ -85,6 +88,7 @@ export function usePlannerStore() {
       warning: '',
       backendConnected: false,
       aiEnabled: null,
+      amapEnabled: null,
       dataSourceLabel: ''
     });
     localStorage.removeItem(STORAGE_KEY);
@@ -93,7 +97,8 @@ export function usePlannerStore() {
   function updateRuntimeStatus<T>(response: ApiEnvelope<T>) {
     state.backendConnected = response.backendMode === true;
     state.aiEnabled = typeof response.aiEnabled === 'boolean' ? response.aiEnabled : state.aiEnabled;
-    state.dataSourceLabel = response.dataSourceLabel || (response.backendMode ? 'V3 后端' : '前端 Mock');
+    state.amapEnabled = typeof response.amapEnabled === 'boolean' ? response.amapEnabled : state.amapEnabled;
+    state.dataSourceLabel = response.dataSourceLabel || (response.backendMode ? 'V4 后端' : '前端 Mock');
   }
 
   return { state, resetPlan, updateRuntimeStatus };

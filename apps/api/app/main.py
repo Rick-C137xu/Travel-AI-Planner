@@ -1,50 +1,36 @@
-import json
-import os
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .ai_client import AIClient
-from .mock_data import mock_extract_places, mock_itinerary, mock_places
+from .config import load_settings
 from .models import (
     ApiEnvelope,
-    DayPlan,
     ExtractRequest,
     ItineraryRequest,
     NextQuestionRequest,
-    Place,
     RecommendRequest,
 )
+from .services.ai_client import AIClient
+from .services.amap_client import AmapClient
+from .services.planner_service import PlannerService
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv()
 
-API_VERSION = "v3"
-SERVICE_NAME = "travel-ai-planner-api"
-DEFAULT_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://travel-ai-planner-lake.vercel.app",
-]
+settings = load_settings()
+API_VERSION = settings.version
+SERVICE_NAME = settings.service_name
 
-
-def get_allowed_origins(raw_value: str | None) -> list[str]:
-    if raw_value is None:
-        return DEFAULT_ALLOWED_ORIGINS
-    origins = [origin.strip() for origin in raw_value.split(",") if origin.strip()]
-    if "*" in origins:
-        return ["*"]
-    return origins or DEFAULT_ALLOWED_ORIGINS
-
-
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
-allowed_origins_env_configured = allowed_origins_env is not None
-allowed_origins = get_allowed_origins(allowed_origins_env)
-allow_credentials = "*" not in allowed_origins
+allowed_origins = list(settings.allowed_origins)
+allow_credentials = settings.allow_credentials
+allowed_origins_env_configured = settings.allowed_origins_env_configured
 
 app = FastAPI(title="Travel AI Planner API", version=API_VERSION)
 app.add_middleware(
@@ -55,16 +41,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ai_client = AIClient()
+ai_client = AIClient(settings)
+amap_client = AmapClient(settings)
+planner = PlannerService(settings, ai=ai_client, amap=amap_client)
 
 
-def backend_mock_envelope(data: object, warning: str) -> ApiEnvelope:
+def _envelope(data: Any, meta: dict[str, Any]) -> ApiEnvelope:
     return ApiEnvelope(
         data=data,
-        warning=warning,
-        dataSourceLabel="后端 Mock",
-        aiEnabled=False,
-        backendMode=True,
+        warning=meta.get("warning"),
+        dataSourceLabel=meta.get("dataSourceLabel"),
+        aiEnabled=meta.get("aiEnabled"),
+        amapEnabled=meta.get("amapEnabled"),
+        backendMode=meta.get("backendMode", True),
     )
 
 
@@ -79,8 +68,13 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/health")
-def api_health() -> dict[str, str | bool]:
-    return {**health(), "aiEnabled": ai_client.enabled}
+def api_health() -> dict[str, Any]:
+    return {
+        **health(),
+        "aiEnabled": settings.ai_enabled,
+        "amapEnabled": settings.amap_enabled,
+        "dataMode": settings.data_mode,
+    }
 
 
 @app.get("/api/debug/cors")
@@ -89,6 +83,25 @@ def debug_cors() -> dict[str, list[str] | bool]:
         "allowedOrigins": allowed_origins,
         "allowCredentials": allow_credentials,
         "envConfigured": allowed_origins_env_configured,
+    }
+
+
+@app.get("/api/debug/config")
+def debug_config() -> dict[str, Any]:
+    """返回非敏感的运行时配置，方便从前端快速判断当前是否启用了 AI / 高德。
+
+    严格不返回任何 Key 或完整密钥；ai_base_url 只作为调试提示，不包含凭据。
+    """
+    return {
+        "service": SERVICE_NAME,
+        "version": API_VERSION,
+        "aiProvider": settings.ai_provider,
+        "aiEnabled": settings.ai_enabled,
+        "aiBaseUrl": settings.ai_base_url if settings.ai_enabled else "",
+        "aiModel": settings.ai_model if settings.ai_enabled else "",
+        "amapEnabled": settings.amap_enabled,
+        "allowedOrigins": allowed_origins,
+        "dataMode": settings.data_mode,
     }
 
 
@@ -115,99 +128,20 @@ def next_question(payload: NextQuestionRequest) -> ApiEnvelope:
 
 @app.post("/api/places/recommend")
 async def recommend_places(payload: RecommendRequest) -> ApiEnvelope:
-    fallback = mock_places(payload.preference, source="后端 Mock")
-    if not ai_client.enabled:
-        return backend_mock_envelope(
-            data=[place.model_dump() for place in fallback],
-            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 候选地点。",
-        )
-
-    result, warning = await ai_client.json_completion(
-        system_prompt=(
-            "你是旅行规划助手。只能返回 JSON，不要返回 Markdown。"
-            "JSON 格式为 {\"places\": Place[]}，Place 字段必须包含："
-            "id,name,type,address,lat,lng,reason,suitableFor,estimatedTime,warning,source,userStatus。"
-            "type 只能是 景点/餐厅/商圈/博物馆/夜市/自然风景/交通点/其他；source 使用 AI推荐；userStatus 使用 backup。"
-        ),
-        user_prompt=(
-            "根据以下旅行需求推荐 10-20 个候选地点，不要直接生成路线。"
-            "推荐要兼顾偏好、雷区、预算和旅行强度。\n"
-            f"旅行需求：{payload.preference.model_dump_json(ensure_ascii=False)}\n"
-            f"用户粘贴攻略补充：{payload.guideText[:4000]}"
-        ),
-    )
-    try:
-        raw_places = result.get("places", result) if isinstance(result, dict) else result
-        places = [Place.model_validate(item).model_dump() for item in raw_places]
-        return ApiEnvelope(data=places, warning=warning, dataSourceLabel="AI 推荐", aiEnabled=True, backendMode=True)
-    except Exception:
-        return backend_mock_envelope(
-            data=[place.model_dump() for place in fallback],
-            warning=warning or "AI 地点 JSON 解析失败，已使用后端 Mock 数据。",
-        )
+    places, meta = await planner.recommend_places(payload.preference, payload.guideText)
+    return _envelope([place.model_dump() for place in places], meta)
 
 
 @app.post("/api/places/extract")
 async def extract_places(payload: ExtractRequest) -> ApiEnvelope:
-    fallback = mock_extract_places(payload.preference, payload.text)
-    if not ai_client.enabled:
-        return backend_mock_envelope(
-            data=[place.model_dump() for place in fallback],
-            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 文本提取。",
-        )
-
-    result, warning = await ai_client.json_completion(
-        system_prompt=(
-            "你是攻略文本结构化助手。只能返回 JSON，不要返回 Markdown。"
-            "JSON 格式为 {\"places\": Place[]}。从文本中提取地点、推荐理由和避坑信息，source 使用 用户粘贴攻略，userStatus 使用 backup。"
-        ),
-        user_prompt=f"目的地：{payload.preference.destination}\n攻略文本：{payload.text[:6000]}",
-    )
-    try:
-        raw_places = result.get("places", result) if isinstance(result, dict) else result
-        places = [Place.model_validate(item).model_dump() for item in raw_places]
-        return ApiEnvelope(data=places, warning=warning, dataSourceLabel="AI 提取", aiEnabled=True, backendMode=True)
-    except Exception:
-        return backend_mock_envelope(
-            data=[place.model_dump() for place in fallback],
-            warning=warning or "AI 提取 JSON 解析失败，已使用后端 Mock 数据。",
-        )
+    places, meta = await planner.extract_places(payload.preference, payload.text)
+    return _envelope([place.model_dump() for place in places], meta)
 
 
 @app.post("/api/itinerary/generate")
 async def generate_itinerary(payload: ItineraryRequest) -> ApiEnvelope:
-    fallback = mock_itinerary(payload.preference, payload.places)
-    if not ai_client.enabled:
-        return backend_mock_envelope(
-            data=[day.model_dump() for day in fallback],
-            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 行程。",
-        )
-
-    density = {"relaxed": "每天 2-3 个主要地点", "normal": "每天 3-4 个主要地点", "intense": "每天 4-6 个主要地点"}[
-        payload.preference.pace
-    ]
-    result, warning = await ai_client.json_completion(
-        system_prompt=(
-            "你是旅行行程规划助手。只能返回 JSON，不要返回 Markdown。"
-            "JSON 格式为 {\"days\": DayPlan[]}。DayPlan 字段：day,date,title,items。"
-            "ItineraryItem 字段：id,timeLabel,placeId,placeName,activity,estimatedDuration,transportSuggestion,note。"
-            "行程不要太满，按地理与体力合理安排。"
-        ),
-        user_prompt=(
-            f"旅行需求：{payload.preference.model_dump_json(ensure_ascii=False)}\n"
-            f"强度密度要求：{density}\n"
-            f"已选地点：{json.dumps([place.model_dump() for place in payload.places], ensure_ascii=False)}"
-        ),
-    )
-    try:
-        raw_days = result.get("days", result) if isinstance(result, dict) else result
-        days = [DayPlan.model_validate(item).model_dump() for item in raw_days]
-        return ApiEnvelope(data=days, warning=warning, dataSourceLabel="AI 行程", aiEnabled=True, backendMode=True)
-    except Exception:
-        return backend_mock_envelope(
-            data=[day.model_dump() for day in fallback],
-            warning=warning or "AI 行程 JSON 解析失败，已使用后端 Mock 数据。",
-        )
+    days, meta = await planner.generate_itinerary(payload.preference, payload.places)
+    return _envelope([day.model_dump() for day in days], meta)
 
 
 def infer_end_date(start_date: str, days: int) -> str:
