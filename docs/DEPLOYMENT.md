@@ -80,21 +80,34 @@ http://127.0.0.1:8000/health
 ALLOWED_ORIGINS=http://localhost:5173,https://travel-ai-planner-lake.vercel.app
 ```
 
-未配置时，默认只允许：
+未配置时，默认允许：
 
 ```text
 http://localhost:5173
 http://127.0.0.1:5173
+https://travel-ai-planner-lake.vercel.app
+```
+
+生产环境推荐明确配置：
+
+```env
+ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
+```
+
+临时排查跨域问题时可以使用：
+
+```env
+ALLOWED_ORIGINS=*
 ```
 
 生产环境不要长期使用 `ALLOWED_ORIGINS=*`。如果临时排查跨域问题使用了 `*`，排查完成后应改回明确的 Vercel 前端域名。
 
-V3.0.1 起，后端会在 FastAPI app 创建后立即注册 `CORSMiddleware`：
+V3.0.2 起，后端会在 FastAPI app 创建后立即注册 `CORSMiddleware`：
 
 - `ALLOWED_ORIGINS="*"` 时使用 `allow_origins=["*"]`，并自动设置 `allow_credentials=False`。
 - `ALLOWED_ORIGINS` 为逗号分隔域名时，会去掉每一项前后空格并忽略空值。
 - `allow_methods=["*"]`、`allow_headers=["*"]`，确保浏览器 `OPTIONS` 预检请求能返回 CORS 头。
-- 可访问 `GET /api/debug/cors` 查看当前后端读取到的 `allowedOrigins` 和 `allowCredentials`，该接口不返回 API Key 或其他敏感配置。
+- 可访问 `GET /api/debug/cors` 查看当前后端读取到的 `allowedOrigins`、`allowCredentials` 和 `envConfigured`，该接口不返回 API Key 或其他敏感配置。
 
 ## Render 部署步骤
 
@@ -120,7 +133,38 @@ ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 6. 添加 `ALLOWED_ORIGINS`，值为 Vercel 前端地址。
 7. 部署完成后打开 `https://your-api-service.onrender.com/health` 验证。
 
+修改 Render 环境变量后必须重新部署后端，新的 `ALLOWED_ORIGINS` 才会被运行中的 FastAPI 进程读取。
+
 如 Render 需要指定 Python 版本，可在 Render 设置中选择 Python 运行时版本；当前项目暂不强制新增 `runtime.txt`。
+
+## Render 后端 CORS 排查
+
+当前线上前端为：
+
+```text
+https://travel-ai-planner-lake.vercel.app
+```
+
+当前 Render 后端为：
+
+```text
+https://travel-ai-planner-api.onrender.com
+```
+
+如果浏览器控制台出现：
+
+```text
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+按以下顺序排查：
+
+1. 打开 `https://travel-ai-planner-api.onrender.com/api/debug/cors`。
+2. 确认 `allowedOrigins` 包含 `https://travel-ai-planner-lake.vercel.app`。
+3. 确认 `envConfigured` 是否为 `true`。如果为 `false`，说明 Render 当前进程没有读到 `ALLOWED_ORIGINS`，会使用代码内置 fallback。
+4. 生产环境推荐在 Render 设置 `ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app`。
+5. 临时排查可设置 `ALLOWED_ORIGINS=*`，此时 `allowCredentials` 应返回 `false`。
+6. 每次修改 Render 环境变量后，都需要重新部署后端，再重新访问 `/api/debug/cors` 验证。
 
 ## Railway 部署步骤
 

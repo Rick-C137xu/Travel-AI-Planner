@@ -25,18 +25,25 @@ load_dotenv()
 
 API_VERSION = "v3"
 SERVICE_NAME = "travel-ai-planner-api"
-DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://travel-ai-planner-lake.vercel.app",
+]
 
 
-def get_allowed_origins() -> list[str]:
-    raw_value = os.getenv("ALLOWED_ORIGINS", ",".join(DEFAULT_ALLOWED_ORIGINS))
+def get_allowed_origins(raw_value: str | None) -> list[str]:
+    if raw_value is None:
+        return DEFAULT_ALLOWED_ORIGINS
     origins = [origin.strip() for origin in raw_value.split(",") if origin.strip()]
     if "*" in origins:
         return ["*"]
     return origins or DEFAULT_ALLOWED_ORIGINS
 
 
-allowed_origins = get_allowed_origins()
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+allowed_origins_env_configured = allowed_origins_env is not None
+allowed_origins = get_allowed_origins(allowed_origins_env)
 allow_credentials = "*" not in allowed_origins
 
 app = FastAPI(title="Travel AI Planner API", version=API_VERSION)
@@ -68,7 +75,11 @@ def api_health() -> dict[str, str | bool]:
 
 @app.get("/api/debug/cors")
 def debug_cors() -> dict[str, list[str] | bool]:
-    return {"allowedOrigins": allowed_origins, "allowCredentials": allow_credentials}
+    return {
+        "allowedOrigins": allowed_origins,
+        "allowCredentials": allow_credentials,
+        "envConfigured": allowed_origins_env_configured,
+    }
 
 
 @app.post("/api/chat/next-question")

@@ -1,5 +1,26 @@
 # Change Record
 
+## 2026-05-19 V3.0.2 CORS fallback hotfix
+
+### 修改
+
+- `apps/api/app/main.py`：保留 `ALLOWED_ORIGINS` 环境变量读取逻辑，并将未配置时的默认允许来源扩展为本地 Vite 地址和线上 Vercel 前端 `https://travel-ai-planner-lake.vercel.app`，避免 Render 环境变量未生效时线上前端仍无法跨域访问后端。
+- `apps/api/app/main.py`：继续支持 `ALLOWED_ORIGINS="*"` 时使用 `allow_origins=["*"]` 且 `allow_credentials=False`；逗号分隔域名会自动去掉空格、忽略空值，并保持 `allow_credentials=True`。
+- `apps/api/app/main.py`：增强 `GET /api/debug/cors`，新增返回 `envConfigured`，用于判断后端是否实际读取到了 `ALLOWED_ORIGINS`，不输出真实 API Key 或其他敏感配置。
+- `docs/DEPLOYMENT.md`：补充 Render 后端 CORS 排查说明、生产环境推荐配置、临时 `ALLOWED_ORIGINS=*` 排查方式，以及修改 Render 环境变量后必须重新部署后端的提醒。
+
+### 修复原因
+
+- 线上 Vercel 前端 `https://travel-ai-planner-lake.vercel.app` 已请求到 Render 后端 `https://travel-ai-planner-api.onrender.com/api/places/recommend`，但浏览器报错 `No 'Access-Control-Allow-Origin' header is present on the requested resource`。
+- 当前 `/api/debug/cors` 仍只返回 localhost，说明 Render 的 `ALLOWED_ORIGINS` 可能未配置、未重新部署或未被进程读取；本次增加安全 fallback，保证未设置环境变量时也包含线上 Vercel 前端来源。
+
+### 验证方式
+
+- 在 `apps/api` 运行 `python -m py_compile app/main.py`。
+- 在 `apps/api` 运行 `python -m compileall app`。
+- 在 `apps/web` 运行 `npm.cmd run typecheck`。
+- 在 `apps/web` 运行 `npm.cmd run build`。
+
 ## 2026-05-18 V3.0.1 CORS Hotfix
 
 ### 修改
