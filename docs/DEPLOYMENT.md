@@ -1,4 +1,4 @@
-# V4 部署指南
+# V4.1 部署指南
 
 ## V2 前端静态部署回顾
 
@@ -216,19 +216,21 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 - 如果后端请求成功但未配置 `AI_API_KEY`，页面会显示后端已连接，并使用后端 Mock 数据。
 - 只有后端请求失败、CORS 失败、接口返回非 2xx 或网络失败时，页面才会显示失败 warning，并回退到前端 Mock 数据，避免白屏。
 
-## 数据来源显示规则
+## 数据来源显示规则（V4.1）
 
-前端 Header 与各页面会按以下顺序判断展示标签：
+前端 Header 与各页面按本次请求 envelope 中的 `dataSourceLabel` 为权威，后端能力（`aiEnabled / amapEnabled`）作为兜底：
 
-1. `VITE_USE_MOCK=true`：`V2.1 Frontend Mock`，不会请求后端。
-2. `VITE_USE_MOCK=false` 且请求失败：`Backend Failed → Frontend Mock`。
-3. `VITE_USE_MOCK=false` 且后端返回 2xx，根据 envelope 中的 `aiEnabled / amapEnabled`：
-   - `aiEnabled=true && amapEnabled=true` → `V4 AI + Amap`，`dataSourceLabel="真实 AI + 高德"`。
-   - `aiEnabled=false && amapEnabled=true` → `V4 Amap`，`dataSourceLabel="高德地图"`。
-   - `aiEnabled=true && amapEnabled=false` → `V4 AI`，`dataSourceLabel="AI 生成"`。
-   - 都为 false → `V3 Backend Mock`，`dataSourceLabel="后端 Mock"`。
+| 场景 | dataSourceLabel | Header 版本签 |
+| --- | --- | --- |
+| 前端 Mock | （前端自填） | `V2.1 Frontend Mock` |
+| 后端请求失败 | （前端自填） | `Backend Failed → Frontend Mock` |
+| AI + 高德 都配置且 AI 成功 | `高德地图 + AI` | `V4.1 AI + Amap` |
+| AI + 高德 都配置但 AI 失败 | `高德地图 + 后端模板` | `V4.1 AI Fallback`（页面顶部红条：AI 请求失败，已降级为后端模板，地点仍来自高德 POI） |
+| 仅高德 | `高德地图` | `V4 Amap` |
+| 仅 AI | `AI 生成` | `V4.1 AI` |
+| 都没配置 | `后端 Mock` | `V3 Backend Mock` |
 
-`/api/debug/config` 是判断当前后端能力的权威接口；前端 envelope 字段是判断每次请求实际走了哪条降级路径的权威字段。
+`/api/debug/config` 用来判断当前后端能力（`aiEnabled / amapEnabled / dataMode`）；具体一次请求实际走的路径以 envelope.dataSourceLabel 为准。`/api/debug/config` 不返回任何 `*_KEY` 字段。
 
 ## 本地前后端联调
 

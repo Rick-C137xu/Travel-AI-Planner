@@ -12,15 +12,19 @@ const panelDescription = computed(() => {
   }
   if (!state.backendConnected) {
     if (state.dataSourceLabel === '前端 Mock') {
-      return '当前为 V4 后端模式，但后端请求失败，已降级为前端 Mock 提取。';
+      return '当前为 V4.1 后端模式，但后端请求失败，已降级为前端 Mock 提取。';
     }
-    return '当前为 V4 后端模式，会请求后端文本提取接口。暂不做 OCR，也不会自动抓取任何平台。';
+    return '当前为 V4.1 后端模式，会请求后端文本提取接口。暂不做 OCR，也不会自动抓取任何平台。';
   }
-  if (state.aiEnabled && state.amapEnabled) {
-    return '当前为 V4 AI + 高德 提取：AI 从粘贴文本中识别地点，再通过高德 POI 搜索补充地址与经纬度。';
+  const label = state.dataSourceLabel;
+  if (label === '高德地图 + AI') {
+    return '当前为 V4.1 高德地图 + AI 提取：AI 从粘贴文本中识别地点，再通过高德 POI 搜索补充地址与经纬度。';
   }
-  if (state.aiEnabled) {
-    return '当前为 V4 AI 提取：AI 从粘贴文本中识别地点；未配置 AMAP_KEY，地址需人工核对。';
+  if (label === '高德地图 + 后端模板') {
+    return '当前为 V4.1 高德地图 + 后端模板提取：AI 请求失败，已降级为后端规则提取，再用高德搜索补全地址。';
+  }
+  if (state.aiEnabled && !state.amapEnabled) {
+    return '当前为 V4.1 AI 提取：AI 从粘贴文本中识别地点；未配置 AMAP_KEY，地址需人工核对。';
   }
   if (state.amapEnabled) {
     return '当前为 V4 后端规则 + 高德 提取：后端按规则切分文本，再用高德搜索补全地址。';

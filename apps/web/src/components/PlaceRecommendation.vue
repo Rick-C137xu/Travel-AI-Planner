@@ -17,21 +17,30 @@ const sourceNote = computed(() => {
   }
   if (!state.backendConnected) {
     if (state.dataSourceLabel === '前端 Mock') {
-      return '当前为 V4 后端模式，但后端请求失败，已降级为前端 Mock 数据。';
+      return '当前为 V4.1 后端模式，但后端请求失败，已降级为前端 Mock 数据。';
     }
-    return '当前为 V4 后端模式，正在请求后端推荐接口。';
+    return '当前为 V4.1 后端模式，正在请求后端推荐接口。';
   }
-  if (state.aiEnabled && state.amapEnabled) {
-    return '当前为 V4 真实 AI + 高德模式：候选地点由高德地图返回真实 POI，并由 AI 补充推荐文案。';
+  const label = state.dataSourceLabel;
+  if (label === '高德地图 + AI') {
+    return '当前为 V4.1 高德地图 + AI 模式：候选地点由高德地图返回真实 POI，并由 AI 补充推荐文案。';
   }
-  if (state.amapEnabled) {
-    return '当前为 V4 高德模式：候选地点来自高德 POI 搜索；后端未配置 AI_API_KEY，文案为模板生成。';
+  if (label === '高德地图 + 后端模板') {
+    return '当前为 V4.1 高德地图 + 后端模板：AI 请求失败，已降级为后端模板，地点仍来自高德 POI。';
   }
-  if (state.aiEnabled) {
-    return '当前为 V4 AI 生成模式：地点由 AI 生成，未经过高德地图校验，请人工核对营业信息。';
+  if (label === '高德地图') {
+    return '当前为 V4 高德模式：候选地点来自高德 POI 搜索；后端未配置 AI_API_KEY，文案为后端模板生成。';
+  }
+  if (label === 'AI 生成') {
+    return '当前为 V4.1 AI 生成模式：地点由 AI 生成，未经过高德地图校验，请人工核对营业信息。';
   }
   return '当前为 V3 后端 Mock 模式：后端已连接成功，但未配置 AI_API_KEY 与 AMAP_KEY，返回后端 Mock 数据。';
 });
+const aiFallbackNotice = computed(() =>
+  state.backendConnected && state.dataSourceLabel === '高德地图 + 后端模板'
+    ? 'AI 请求失败，已降级为后端模板；地点仍来自高德 POI，不影响地点准确性。'
+    : ''
+);
 
 async function loadPlaces() {
   loadingPlaces.value = true;
@@ -95,7 +104,8 @@ if (!state.places.length) {
         {{ sourceNote }} 你也可以粘贴攻略文本，系统会尝试提取其中的地点信息；不会自动抓取任何平台内容。
       </div>
 
-      <p v-if="state.warning" class="warning-banner">{{ state.warning }}</p>
+      <p v-if="aiFallbackNotice" class="warning-banner">{{ aiFallbackNotice }}</p>
+      <p v-if="state.warning && state.warning !== aiFallbackNotice" class="warning-banner">{{ state.warning }}</p>
       <PasteGuidePanel />
       <div v-if="loadingPlaces" class="empty-state">正在生成候选地点...</div>
       <div v-else class="place-grid compact-place-grid">

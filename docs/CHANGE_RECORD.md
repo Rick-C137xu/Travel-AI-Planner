@@ -1,5 +1,59 @@
 # Change Record
 
+## 2026-05-20 V4.1 AI 接入与降级语义对齐
+
+### 目标
+
+在 V4（高德 POI 已跑通）基础上接入 AI，并把"AI 成功 / AI 失败但高德 OK / 完全无 Key"三种状态在 envelope 与前端文案中显式区分。范围克制，**不重构架构、不删 V4 高德 / 地图 JS API / CORS 任何已跑通能力**。
+
+### 修改
+
+- `apps/api/app/config.py`
+  - `Settings.version` 由 `v4` 升级为 `v4.1`，`/health`、`/api/health`、`/api/debug/config` 都会同步显示。
+  - `data_mode` 命名按 V4.1 规范统一：`高德地图 + AI` / `高德地图` / `AI 生成` / `后端 Mock`。
+  - 仍只通过环境变量读取 `AI_PROVIDER / AI_API_KEY / AI_BASE_URL / AI_MODEL / AMAP_KEY / ALLOWED_ORIGINS`，绝不返回任何 Key。
+- `apps/api/app/services/planner_service.py`
+  - `_recommend_ai_amap` 与 `_ai_annotate_pois` 改为返回 `(places, warning, ai_succeeded)`，让上层能判断"AI 是否真正成功"。
+  - `recommend_places` 新增"高德地图 + 后端模板"降级分支：AI 失败但高德返回了 POI 时，POI 不丢，文案/source 改为后端模板，envelope.warning 明确写 `AI 请求失败，已降级为后端模板，地点仍来自高德 POI。`，`aiEnabled` 仍上报真实配置以区分"AI 未配置"。
+  - `extract_places` 同步引入"高德地图 + 后端模板"降级，AI 失败而高德可用时不再退回到无地图标签。
+  - `generate_itinerary` 同步引入"高德地图 + 后端模板"降级；AI 成功时标签为 `高德地图 + AI`。
+  - `_ai_annotate_pois` 内部 source 选择改为：注释成功且命中 → `AI + 高德`；否则 → `高德地图`，避免在降级时仍宣称是 AI 来源。
+  - 不动 `amap_client.py` 与 V4 高德搜索路径。
+- `apps/api/app/main.py`：无需改动；版本号、debug/config 字段已经自动跟随 `Settings`。
+- `apps/web/src/services/api.ts`：`normalizeBackendResponse` 命名对齐为 `高德地图 + AI / 高德地图 / AI 生成 / 后端 Mock`，并显式让后端的 `dataSourceLabel` 优先（这样"高德地图 + 后端模板"能直接透传给前端）。
+- `apps/web/src/store/usePlannerStore.ts`：默认数据来源占位字符串从 `V4 后端` 改为 `V4.1 后端`，行为不变。
+- `apps/web/src/components/AppHeader.vue`：按 V4.1 规范展示版本签：
+  - `Travel AI Planner · V4.1 AI + Amap`（AI 成功）
+  - `Travel AI Planner · V4.1 AI Fallback`（AI 请求失败，POI 仍来自高德）
+  - `Travel AI Planner · V4 Amap`（AI 未配置，仅高德）
+  - `Travel AI Planner · V4.1 AI`（AI 已配置但未配高德）
+  - `Travel AI Planner · V3 Backend Mock`（都没有）
+  - `Travel AI Planner · Backend Failed → Frontend Mock`（请求失败）
+- `apps/web/src/components/PlaceRecommendation.vue`、`PasteGuidePanel.vue`、`ItineraryView.vue`：文案改成按 `dataSourceLabel` 分支显示；`高德地图 + 后端模板` 状态下额外渲染一行 `AI 请求失败，已降级为后端模板；地点仍来自高德 POI` 的明显提示。
+- `apps/web/src/components/PlaceCard.vue`：保持原映射逻辑，仅在"都没 Key"时才把 `Mock数据` 映射为「后端 Mock」，真实 `高德地图 / AI + 高德` 标签直接展示。
+- `docs/CHANGE_RECORD.md`：新增本节。
+- `docs/DEPLOYMENT.md`、`README.md`、`AGENTS.md`：版本号 V4 → V4.1，记录新的 dataSourceLabel 集合与验证步骤。
+
+### 失败降级行为约束
+
+- AI 请求超时 / HTTP 错误 / JSON 解析失败：返回 `(None, warning)`，绝不抛 500。
+- 当 `amap_enabled=True` 且 AI 失败：保留高德 POI，使用模板文案；envelope 中 `dataSourceLabel="高德地图 + 后端模板"`，`aiEnabled=True`（这样前端能识别"AI 配了但失败"），并附 warning。
+- 当 `amap_enabled=False` 且 AI 失败：维持 V4 现有降级（`后端 Mock`）。
+- 前端 Header 与列表页据此显示 `V4.1 AI Fallback` 版本签 + 一行明显的 warning，**不会**把整个推荐结果替换为前端 Mock。
+
+### 环境变量
+
+- 不新增任何环境变量，沿用 V4：`AI_PROVIDER / AI_API_KEY / AI_BASE_URL / AI_MODEL / AMAP_KEY / ALLOWED_ORIGINS`。
+- `.env.example` 与 `apps/api/.env.example` 已在 V4 提供占位，本轮无改动。
+- 任何文档、CHANGE_RECORD、代码、日志均未出现真实 Key。
+
+### 检查命令真实结果（见对话末尾）
+
+- `python -m py_compile app/main.py`
+- `python -m compileall app`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+
 ## 2026-05-19 V4.0 Real AI + Amap Integration Ready
 
 ### 新增

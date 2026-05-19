@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V4.0 Real AI + Amap Integration Ready：后端在 V3 部署链路基础上新增 AI（OpenAI-compatible）与高德 Web 服务封装，未配置 `AI_API_KEY` / `AMAP_KEY` 时仍走后端 Mock 降级。Vercel 前端继续请求 Render 后端，前端会按 envelope 中的 `aiEnabled / amapEnabled` 显示不同版本签。
+本项目是“AI 出行旅游计划助手”。当前版本为 V4.1：在 V4 高德 POI 已跑通的基础上接入 AI（OpenAI-compatible），并把 AI 成功 / AI 失败但高德 OK / 完全无 Key 三种状态在 envelope 与前端文案中显式区分。AI 请求失败时会保留高德 POI，文案降级为后端模板，envelope 中 `dataSourceLabel="高德地图 + 后端模板"`，前端 Header 显示 `V4.1 AI Fallback` 并附明显提示。Vercel 前端继续请求 Render 后端。
 
 后续 agent 修改项目时请遵守以下规则：
 

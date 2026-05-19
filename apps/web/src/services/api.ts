@@ -48,13 +48,14 @@ function normalizeBackendResponse<T>(response: ApiEnvelope<T>): ApiEnvelope<T> {
     !aiEnabled && !amapEnabled
     && (response.aiEnabled === false || Boolean(response.warning && response.warning.includes('AI_API_KEY')));
 
+  // 后端显式给出的 dataSourceLabel 优先（用于「高德地图 + 后端模板」这类降级场景）。
   let dataSourceLabel = response.dataSourceLabel || '';
   if (!dataSourceLabel) {
-    if (aiEnabled && amapEnabled) dataSourceLabel = '真实 AI + 高德';
+    if (aiEnabled && amapEnabled) dataSourceLabel = '高德地图 + AI';
     else if (amapEnabled) dataSourceLabel = '高德地图';
     else if (aiEnabled) dataSourceLabel = 'AI 生成';
     else if (isBackendMock) dataSourceLabel = '后端 Mock';
-    else dataSourceLabel = 'V4 后端';
+    else dataSourceLabel = 'V4.1 后端';
   }
 
   if (isBackendMock && Array.isArray(response.data)) {

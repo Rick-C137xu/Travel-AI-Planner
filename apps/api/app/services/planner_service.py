@@ -89,15 +89,26 @@ class PlannerService:
         amap_on = self.amap.enabled
 
         if ai_on and amap_on:
-            places, warning = await self._recommend_ai_amap(preference, guide_text)
-            if places:
+            places, warning, ai_succeeded = await self._recommend_ai_amap(preference, guide_text)
+            if places and ai_succeeded:
                 return places, _meta(
-                    label="真实 AI + 高德",
+                    label="高德地图 + AI",
                     ai=True,
                     amap=True,
                     warning=warning,
                 )
-            # AI+Amap 全部失败，向下降级
+            if places and not ai_succeeded:
+                # POI 仍来自高德，文案降级为模板；明确告知用户 AI 失败
+                return places, _meta(
+                    label="高德地图 + 后端模板",
+                    ai=True,
+                    amap=True,
+                    warning=(
+                        "AI 请求失败，已降级为后端模板，地点仍来自高德 POI。"
+                        + (f" 详情：{warning}" if warning else "")
+                    ),
+                )
+            # AI + Amap 全失败（连 POI 都拿不到），向下降级
         if amap_on:
             places, warning = await self._recommend_amap_only(preference)
             if places:
@@ -120,17 +131,24 @@ class PlannerService:
 
     async def _recommend_ai_amap(
         self, preference: TravelPreference, guide_text: str
-    ) -> tuple[list[Place], str | None]:
+    ) -> tuple[list[Place], str | None, bool]:
+        """返回 (places, warning, ai_succeeded)。
+
+        ai_succeeded 为 True 表示 AI 注释成功补全了至少部分 POI 的推荐文案。
+        若 ai_succeeded 为 False 但 places 非空，说明 POI 来自高德、文案为模板。
+        """
         keywords = await self._ai_keywords(preference, guide_text)
+        keyword_ai_ok = bool(keywords)
         if not keywords:
             keywords = _rule_keywords(preference)
 
         pois = await self._collect_amap_pois(keywords, preference.destination, limit=20)
         if not pois:
-            return [], "高德 POI 搜索结果为空，已尝试降级。"
+            return [], "高德 POI 搜索结果为空，已尝试降级。", False
 
-        annotated, ai_warning = await self._ai_annotate_pois(preference, pois)
-        return annotated, ai_warning
+        annotated, ai_warning, annotate_ok = await self._ai_annotate_pois(preference, pois)
+        ai_succeeded = keyword_ai_ok and annotate_ok
+        return annotated, ai_warning, ai_succeeded
 
     async def _recommend_amap_only(
         self, preference: TravelPreference
@@ -221,7 +239,7 @@ class PlannerService:
 
     async def _ai_annotate_pois(
         self, preference: TravelPreference, pois: list[dict[str, Any]]
-    ) -> tuple[list[Place], str | None]:
+    ) -> tuple[list[Place], str | None, bool]:
         compact = [
             {
                 "name": poi.get("name", ""),
@@ -254,11 +272,13 @@ class PlannerService:
                         "warning": str(item.get("warning") or ""),
                     }
 
+        annotate_ok = bool(annotations)
         places: list[Place] = []
         for poi in pois:
             extra = annotations.get(poi.get("name", ""), {})
-            places.append(_poi_to_place(poi, preference, source="AI + 高德", extra=extra))
-        return places, warning
+            source = "AI + 高德" if (annotate_ok and extra) else "高德地图"
+            places.append(_poi_to_place(poi, preference, source=source, extra=extra))
+        return places, warning, annotate_ok
 
     # ---- 攻略提取 ----
     async def extract_places(
@@ -298,7 +318,7 @@ class PlannerService:
                 if amap_on:
                     enriched = await self._enrich_extracted_with_amap(ai_places, preference.destination)
                     return enriched, _meta(
-                        label="AI + 高德 提取",
+                        label="高德地图 + AI",
                         ai=True,
                         amap=True,
                         warning=warning,
@@ -343,19 +363,24 @@ class PlannerService:
                 ],
                 preference.destination,
             )
+            if ai_on:
+                warning_msg = "AI 请求失败，已降级为后端模板，地点仍来自高德 POI。"
+            else:
+                warning_msg = "未配置 AI_API_KEY，使用规则提取并通过高德校验。"
             return enriched, _meta(
-                label="规则 + 高德 提取",
-                ai=False,
+                label="高德地图 + 后端模板",
+                # 后端能力侧仍上报真实配置，便于前端区分"AI 配了但失败" vs "AI 未配置"
+                ai=ai_on,
                 amap=True,
-                warning="未配置 AI_API_KEY，使用规则提取并通过高德校验。",
+                warning=warning_msg,
             )
         if ai_on:
-            warning_msg = "AI 提取结果为空，已使用规则提取。"
+            warning_msg = "AI 请求失败，已使用规则提取。"
         else:
             warning_msg = "未配置 AI_API_KEY，已使用后端规则提取。"
         return rule_places, _meta(
-            label="后端规则提取" if not self.ai.enabled else "AI 失败 → 规则提取",
-            ai=False,
+            label="后端 Mock",
+            ai=ai_on,
             amap=False,
             warning=warning_msg,
         )
@@ -425,26 +450,34 @@ class PlannerService:
             )
             days = _safe_parse_days(result)
             if days:
-                label = "真实 AI + 高德" if amap_on else "AI 生成"
+                label = "高德地图 + AI" if amap_on else "AI 生成"
                 return days, _meta(
                     label=label,
                     ai=True,
                     amap=amap_on,
                     warning=warning,
                 )
+            # AI 失败：若有高德，POI 仍来自高德，文案/行程模板降级
             mock = mock_itinerary(preference, ordered)
+            fallback_label = "高德地图 + 后端模板" if amap_on else "后端 Mock"
+            fallback_warning = (
+                "AI 请求失败，已降级为后端模板，地点仍来自高德 POI。"
+                + (f" 详情：{warning}" if warning else "")
+                if amap_on
+                else (warning or "AI 行程解析失败，已使用后端 Mock 行程。")
+            )
             return mock, _meta(
-                label="后端 Mock",
-                ai=False,
+                label=fallback_label,
+                ai=True,
                 amap=amap_on,
-                warning=warning or "AI 行程解析失败，已使用后端 Mock 行程。",
+                warning=fallback_warning,
             )
 
         # 没有 AI 时直接走 mock
         mock = mock_itinerary(preference, ordered)
         label = "高德地图" if amap_on else "后端 Mock"
         warning = (
-            "未配置 AI_API_KEY，已基于高德经纬度排序后使用后端 Mock 行程模板。"
+            "未配置 AI_API_KEY，已基于高德经纬度排序后使用后端模板生成行程。"
             if amap_on
             else "后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 行程。"
         )

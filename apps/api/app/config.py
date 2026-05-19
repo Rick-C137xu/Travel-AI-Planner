@@ -29,7 +29,7 @@ def _parse_origins(raw_value: str | None) -> tuple[list[str], bool]:
 @dataclass(frozen=True)
 class Settings:
     service_name: str = "travel-ai-planner-api"
-    version: str = "v4"
+    version: str = "v4.1"
 
     ai_provider: str = "openai-compatible"
     ai_api_key: str = ""
@@ -51,8 +51,13 @@ class Settings:
 
     @property
     def data_mode(self) -> str:
+        """V4.1 起，dataMode 命名统一为产品文案要求的版本。
+
+        注意：这里返回的是"后端能力"层级的 dataMode；具体一次请求的真实 dataSourceLabel
+        由 PlannerService 在请求时给出（可能因 AI 调用失败而降级为「高德地图 + 后端模板」）。
+        """
         if self.ai_enabled and self.amap_enabled:
-            return "真实 AI + 高德"
+            return "高德地图 + AI"
         if self.amap_enabled:
             return "高德地图"
         if self.ai_enabled:

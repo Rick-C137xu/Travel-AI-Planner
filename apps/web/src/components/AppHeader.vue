@@ -20,11 +20,18 @@ const versionLabel = computed(() => {
   if (isFrontendMockMode) return 'Travel AI Planner · V2.1 Frontend Mock';
   if (!state.backendConnected) {
     if (state.dataSourceLabel === '前端 Mock') return 'Travel AI Planner · Backend Failed → Frontend Mock';
-    return 'Travel AI Planner · V4';
+    return 'Travel AI Planner · V4.1';
   }
-  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4 AI + Amap';
+  // V4.1：以本次请求的 dataSourceLabel 为权威，区分 AI 成功/AI 失败降级。
+  const label = state.dataSourceLabel;
+  if (label === '高德地图 + 后端模板') return 'Travel AI Planner · V4.1 AI Fallback';
+  if (label === '高德地图 + AI') return 'Travel AI Planner · V4.1 AI + Amap';
+  if (label === '高德地图') return 'Travel AI Planner · V4 Amap';
+  if (label === 'AI 生成') return 'Travel AI Planner · V4.1 AI';
+  // dataSourceLabel 尚未拿到时，按后端能力推断
+  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4.1 AI + Amap';
   if (state.amapEnabled) return 'Travel AI Planner · V4 Amap';
-  if (state.aiEnabled) return 'Travel AI Planner · V4 AI';
+  if (state.aiEnabled) return 'Travel AI Planner · V4.1 AI';
   return 'Travel AI Planner · V3 Backend Mock';
 });
 </script>

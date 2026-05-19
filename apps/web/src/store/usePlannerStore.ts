@@ -98,7 +98,7 @@ export function usePlannerStore() {
     state.backendConnected = response.backendMode === true;
     state.aiEnabled = typeof response.aiEnabled === 'boolean' ? response.aiEnabled : state.aiEnabled;
     state.amapEnabled = typeof response.amapEnabled === 'boolean' ? response.amapEnabled : state.amapEnabled;
-    state.dataSourceLabel = response.dataSourceLabel || (response.backendMode ? 'V4 后端' : '前端 Mock');
+    state.dataSourceLabel = response.dataSourceLabel || (response.backendMode ? 'V4.1 后端' : '前端 Mock');
   }
 
   return { state, resetPlan, updateRuntimeStatus };

@@ -1,6 +1,6 @@
 # AI 出行旅游计划助手
 
-当前版本：V4.0 Real AI + Amap Integration Ready
+当前版本：V4.1 AI 接入 + 失败降级语义对齐
 
 这是一个网页端旅行规划 MVP。用户通过问答收集旅行需求，系统推荐候选地点，用户选择想去、备选或不想去，再生成每日行程，并在地图区域显示地点清单或地图降级视图。
 
@@ -11,13 +11,16 @@
 - V2.1：根据用户反馈优化 Mock 推荐、数据来源说明、攻略文本演示提取和手机端候选地点卡片。
 - V3：FastAPI 后端已完成 Render 部署联通验证，前端可通过 `VITE_USE_MOCK=false` 请求线上后端 API。
 - V4：后端新增 AI 调用封装（OpenAI-compatible）与高德 Web 服务封装。配置了 `AI_API_KEY` 和 `AMAP_KEY` 后，推荐接口会返回真实 POI + AI 推荐文案；未配置时仍返回后端 Mock 数据。
+- V4.1：AI 接入后的失败降级语义统一。AI 请求超时 / 出错 / JSON 解析失败时，POI 仍来自高德，文案/行程退回为后端模板，envelope 中 `dataSourceLabel="高德地图 + 后端模板"`，前端显示 `V4.1 AI Fallback` 并提示「AI 请求失败，已降级为后端模板，地点仍来自高德 POI」。
 
-V4 运行模式以后端环境变量为准：
+V4.1 运行模式以后端环境变量为准：
 
-- `AI_API_KEY` + `AMAP_KEY`两个都有 → `dataMode = “真实 AI + 高德”`，高德返回真 POI，AI 补推荐文案。
-- 仅 `AMAP_KEY` → `dataMode = “高德地图”`，使用高德 POI，推荐文案为模板生成。
-- 仅 `AI_API_KEY` → `dataMode = “AI 生成”`，AI 生成候选地点，warning 会说明未经过高德校验。
-- 都没有 → `dataMode = “后端 Mock”`，返回后端 Mock 数据（与 V3 一致）。
+- `AI_API_KEY` + `AMAP_KEY` 都有 → `dataMode = "高德地图 + AI"`，高德返回真 POI，AI 补推荐文案/行程。
+- 仅 `AMAP_KEY` → `dataMode = "高德地图"`，使用高德 POI，推荐文案为后端模板。
+- 仅 `AI_API_KEY` → `dataMode = "AI 生成"`，AI 生成候选地点，warning 会说明未经过高德校验。
+- 都没有 → `dataMode = "后端 Mock"`，返回后端 Mock 数据（与 V3 一致）。
+
+具体某次请求的 `dataSourceLabel` 可能为：`高德地图 + AI` / `高德地图 + 后端模板` / `高德地图` / `AI 生成` / `后端 Mock`。`高德地图 + 后端模板` 表示 AI 请求失败而高德可用的降级状态。
 
 可访问 `GET /api/debug/config` 查看当前 `aiEnabled / amapEnabled / dataMode`，该接口不返回任何 Key。
 
