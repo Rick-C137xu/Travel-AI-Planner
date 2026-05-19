@@ -1,20 +1,26 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { extractPlaces } from '@/services/api';
+import { extractPlaces, isFrontendMockMode } from '@/services/api';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
-const { state } = usePlannerStore();
+const { state, updateRuntimeStatus } = usePlannerStore();
 const loading = ref(false);
 const guideTooShort = computed(() => state.guideText.trim().length > 0 && state.guideText.trim().length < 20);
+const panelDescription = computed(() =>
+  isFrontendMockMode
+    ? '当前为 V2.1 / 前端 Mock 演示提取，适合粘贴含有地点名、推荐理由、避坑提醒的文字。暂不做 OCR，也不会自动抓取任何平台；真实 AI 解析计划放到 V4。'
+    : '当前为 V3 后端模式，会请求后端文本提取接口；如果后端未配置 AI_API_KEY，会返回后端 Mock 提取结果。暂不做 OCR，也不会自动抓取任何平台。'
+);
 
 async function extract() {
   if (!state.guideText.trim()) return;
   loading.value = true;
   state.warning = guideTooShort.value
-    ? '粘贴文本较短，V2.1 会先做演示提取；建议粘贴包含地点名、推荐理由或避坑提醒的段落。'
+    ? '粘贴文本较短，当前会先做演示提取；建议粘贴包含地点名、推荐理由或避坑提醒的段落。'
     : '';
   try {
     const response = await extractPlaces(state.preference, state.guideText);
+    updateRuntimeStatus(response);
     const existingIds = new Set(state.places.map((place) => place.id));
     state.places = [...state.places, ...response.data.filter((place) => !existingIds.has(place.id))];
     state.warning = response.warning || state.warning;
@@ -30,9 +36,7 @@ async function extract() {
   <section class="paste-panel">
     <div>
       <h3>粘贴攻略文本</h3>
-      <p>
-        当前是 V2.1 演示提取，适合粘贴含有地点名、推荐理由、避坑提醒的文字。暂不做 OCR，也不会自动抓取任何平台；真实 AI 解析计划放到 V4。
-      </p>
+      <p>{{ panelDescription }}</p>
     </div>
     <textarea
       v-model="state.guideText"

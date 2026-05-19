@@ -27,7 +27,7 @@ export interface Place {
   suitableFor: string;
   estimatedTime: string;
   warning: string;
-  source: 'AI推荐' | '用户粘贴攻略' | 'Mock数据';
+  source: 'AI推荐' | '用户粘贴攻略' | 'Mock数据' | '前端 Mock' | '后端 Mock' | string;
   userStatus?: PlaceStatus;
 }
 
@@ -52,6 +52,9 @@ export interface DayPlan {
 export interface ApiEnvelope<T> {
   data: T;
   warning?: string;
+  dataSourceLabel?: string;
+  aiEnabled?: boolean;
+  backendMode?: boolean;
 }
 
 export type AppStep = 'start' | 'chat' | 'places' | 'itinerary';

@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { isFrontendMockMode } from '@/services/api';
+import { usePlannerStore } from '@/store/usePlannerStore';
 import type { Place, PlaceStatus } from '@/types';
 
 const props = defineProps<{ place: Place }>();
 const emit = defineEmits<{ status: [id: string, status: PlaceStatus] }>();
+const { state } = usePlannerStore();
 
 const expanded = ref(false);
 const shortReason = computed(() => {
   const reason = props.place.reason || '';
   return reason.length > 54 ? `${reason.slice(0, 54)}...` : reason;
+});
+const sourceLabel = computed(() => {
+  if (props.place.source === 'Mock数据') {
+    if (isFrontendMockMode || state.dataSourceLabel === '前端 Mock') return '前端 Mock';
+    if (state.backendConnected && state.aiEnabled === false) return '后端 Mock';
+  }
+  return props.place.source;
 });
 </script>
 
@@ -19,7 +29,7 @@ const shortReason = computed(() => {
         <h3>{{ place.name }}</h3>
         <div class="tag-row">
           <span class="type-tag">{{ place.type }}</span>
-          <span class="source-tag">{{ place.source }}</span>
+          <span class="source-tag">{{ sourceLabel }}</span>
           <span class="mini-tag">{{ place.estimatedTime }}</span>
           <span class="mini-tag">{{ place.suitableFor }}</span>
         </div>

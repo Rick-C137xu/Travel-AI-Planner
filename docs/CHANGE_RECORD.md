@@ -1,5 +1,31 @@
 # Change Record
 
+## 2026-05-19 V3.0.3 Backend Mock Source Label Hotfix
+
+### 修改
+
+- `apps/web/src/services/api.ts`：明确区分三种状态：纯前端 Mock、后端请求成功但返回后端 Mock、后端请求失败后降级为前端 Mock。只要后端返回 2xx，就不再提示“后端请求失败”。
+- `apps/web/src/store/usePlannerStore.ts`：新增运行状态字段，记录后端是否连接成功、AI 是否启用、当前数据来源标签。
+- `apps/web/src/components/AppHeader.vue`：根据运行模式显示 `V2.1 Mock`、`V3 Backend` 或 `V3 Backend Mock`。
+- `apps/web/src/components/PlaceRecommendation.vue`：候选地点页顶部来源说明改为按模式显示，避免 V3 后端已连接时仍显示“V2.1 演示数据”。
+- `apps/web/src/components/PlaceCard.vue`：地点卡片来源标签可区分“前端 Mock”和“后端 Mock”。
+- `apps/web/src/components/PasteGuidePanel.vue`、`apps/web/src/components/StartPage.vue`、`apps/web/src/data/questions.ts`、`apps/web/src/components/ItineraryView.vue`：调整 V2.1 固定文案或同步运行状态，避免后端模式下误导用户。
+- `apps/web/src/types.ts`：为 API envelope 增加可选的 `dataSourceLabel`、`aiEnabled`、`backendMode` 元数据，并允许地点来源显示后端 Mock。
+- `apps/api/app/models.py`、`apps/api/app/main.py`：后端 Mock 响应增加 `dataSourceLabel="后端 Mock"`、`aiEnabled=false`、`backendMode=true`，并将未配置 `AI_API_KEY` 的 warning 改为“后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 数据”。
+- `README.md`、`docs/DEPLOYMENT.md`、`AGENTS.md`：补充 V3 已实现 Vercel 前端请求 Render 后端、CORS 验证方式、Network 里 `/api/places/recommend` 返回 200 的判断方式，以及真实 AI / 地图 API 留到 V4。
+
+### 修复原因
+
+- CORS 已修复且 Vercel 前端可以成功请求 Render 后端，但页面仍显示“V2.1 演示数据”“地点推荐来自内置 Mock 数据”“未配置 AI_API_KEY，已使用 mock 候选地点”和“Mock数据”标签，容易让用户误以为前端没有请求后端。
+- 本次只修复状态判断、数据来源标签和文案，不接入真实 AI API，不接入高德地图 API，不新增真实 Key，不改变部署架构。
+
+### 验证方式
+
+- 在 `apps/api` 运行 `python -m py_compile app/main.py`。
+- 在 `apps/api` 运行 `python -m compileall app`。
+- 在 `apps/web` 运行 `npm.cmd run typecheck`。
+- 在 `apps/web` 运行 `npm.cmd run build`。
+
 ## 2026-05-19 V3.0.2 CORS fallback hotfix
 
 ### 修改

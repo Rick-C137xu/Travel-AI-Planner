@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { generateItinerary } from '@/services/api';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
-const { state } = usePlannerStore();
+const { state, updateRuntimeStatus } = usePlannerStore();
 const loading = ref(false);
 const selectedPlaces = computed(() => state.places.filter((place) => place.userStatus === 'want'));
 
@@ -18,6 +18,7 @@ async function regenerate() {
   state.warning = '';
   try {
     const response = await generateItinerary(state.preference, selectedPlaces.value);
+    updateRuntimeStatus(response);
     state.itinerary = response.data;
     state.warning = response.warning || '';
   } catch (error) {

@@ -1,6 +1,6 @@
 # AI 出行旅游计划助手
 
-当前版本：V3 Backend Deploy Ready
+当前版本：V3 Backend Connected
 
 这是一个网页端旅行规划 MVP。用户通过问答收集旅行需求，系统推荐候选地点，用户选择想去、备选或不想去，再生成每日行程，并在地图区域显示地点清单或地图降级视图。
 
@@ -9,9 +9,9 @@
 - V1：本地 Mock 流程可运行。
 - V2：前端可部署到 Vercel / Cloudflare Pages，手机浏览器可直接体验。
 - V2.1：根据用户反馈优化 Mock 推荐、数据来源说明、攻略文本演示提取和手机端候选地点卡片。
-- V3：FastAPI 后端部署就绪，前端可通过 `VITE_USE_MOCK=false` 请求线上后端 Mock API。
+- V3：FastAPI 后端已完成 Render 部署联通验证，前端可通过 `VITE_USE_MOCK=false` 请求线上后端 API。
 
-V3 的重点是完成前后端分离部署链路。后端仍然返回 Mock 数据，不接真实 AI、真实高德地图、真实天气、数据库或登录系统。真实 AI 和地图能力留到 V4，天气和预算量化等能力留到 V5。
+V3 的重点是完成前后端分离部署链路。当前如果后端未配置 `AI_API_KEY`，接口会返回后端 Mock 数据，并在前端显示为“V3 Backend Mock”或“后端 Mock”，这表示后端已连接成功但尚未启用真实 AI。真实 AI 和地图能力留到 V4，天气和预算量化等能力留到 V5。
 
 ## 技术栈
 
@@ -104,6 +104,8 @@ npm.cmd run dev
 
 当 `VITE_USE_MOCK=false` 且后端请求失败时，页面会显示失败提示，并回退到前端 Mock 数据，避免白屏。
 
+如果 `VITE_USE_MOCK=false` 且后端请求成功，但后端未配置 `AI_API_KEY`，页面会提示“后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 数据”。这不是请求失败，也不是前端 Mock。
+
 ## 后端接口
 
 V3 后端新增或确认以下接口：
@@ -138,6 +140,12 @@ FastAPI 后端推荐部署到 Render 或 Railway。后端需要设置：
 ```env
 ALLOWED_ORIGINS=https://travel-ai-planner-lake.vercel.app
 ```
+
+当前线上联通验证方式：
+
+- 访问 `https://travel-ai-planner-api.onrender.com/api/debug/cors`，确认 `allowedOrigins` 包含 Vercel 前端地址。
+- 在浏览器 Network 中查看 `POST /api/places/recommend` 是否返回 `200`。如果返回 `200`，说明前端确实请求到了后端。
+- 如果响应内容提示未配置 `AI_API_KEY`，当前会显示为“后端 Mock”，真实 AI 推荐留到 V4 接入。
 
 完整步骤见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 

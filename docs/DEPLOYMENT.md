@@ -31,7 +31,8 @@ V3 把项目升级为前后端分离部署版：
 
 - 前端仍可用 `VITE_USE_MOCK=true` 保持 V2.1 前端 Mock 演示。
 - 前端设置 `VITE_USE_MOCK=false` 后，会请求 `VITE_API_BASE_URL` 指向的 FastAPI 后端。
-- FastAPI 后端部署到 Render 或 Railway，当前仍返回 Mock 数据。
+- FastAPI 后端部署到 Render 或 Railway；当前 Render 后端已可被 Vercel 前端请求。
+- 如果后端未配置 `AI_API_KEY`，接口会返回后端 Mock 数据，前端会显示“V3 Backend Mock”或“后端 Mock”。
 - V3 不接真实 AI API、真实地图 API、真实天气 API、数据库或登录系统。
 
 ## FastAPI 本地运行
@@ -203,7 +204,16 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 - `VITE_API_BASE_URL` 不要以 `/api` 结尾，直接填写后端根地址。
 - 地址末尾带不带 `/` 都可以，前端会自动去掉末尾斜杠。
 - 修改 Vercel 环境变量后必须重新部署前端，新的构建才会生效。
-- 如果后端请求失败，页面会显示 warning，并回退到前端 Mock 数据，避免白屏。
+- 如果后端请求成功但未配置 `AI_API_KEY`，页面会显示后端已连接，并使用后端 Mock 数据。
+- 只有后端请求失败、CORS 失败、接口返回非 2xx 或网络失败时，页面才会显示失败 warning，并回退到前端 Mock 数据，避免白屏。
+
+## 数据来源显示规则
+
+前端会区分三种状态：
+
+1. `VITE_USE_MOCK=true`：纯前端 Mock，页面显示“V2.1 Mock”或“前端 Mock”，不会请求后端。
+2. `VITE_USE_MOCK=false` 且后端返回 2xx：V3 后端模式。若后端未配置 `AI_API_KEY`，页面显示“V3 Backend Mock”或“后端 Mock”。
+3. `VITE_USE_MOCK=false` 且请求失败：降级为前端 Mock，页面显示“后端请求失败，已降级为前端 Mock 数据”。
 
 ## 本地前后端联调
 
@@ -238,8 +248,11 @@ npm.cmd run dev
 3. 在 Vercel 设置 `VITE_API_BASE_URL=<Render 或 Railway 后端地址>`。
 4. 在后端设置 `ALLOWED_ORIGINS=<Vercel 前端地址>`。
 5. 重新部署 Vercel 前端。
-6. 打开线上前端，完整测试问答、推荐、攻略文本提取、行程生成。
-7. 临时关闭或填错后端地址，确认页面会提示后端失败并回退到前端 Mock。
+6. 打开 `https://travel-ai-planner-api.onrender.com/api/debug/cors`，确认 CORS 允许来源包含 `https://travel-ai-planner-lake.vercel.app`。
+7. 打开线上前端，完整测试问答、推荐、攻略文本提取、行程生成。
+8. 在浏览器 Network 中确认 `POST https://travel-ai-planner-api.onrender.com/api/places/recommend` 返回 `200`。返回 `200` 就表示前端确实请求到了后端。
+9. 如果后端未配置 `AI_API_KEY`，页面应显示后端已连接但使用后端 Mock 数据；这不是请求失败。
+10. 临时关闭或填错后端地址，确认页面会提示后端失败并回退到前端 Mock。
 
 ## 常见问题
 

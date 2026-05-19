@@ -1,5 +1,5 @@
 import { reactive, watch } from 'vue';
-import type { AppStep, DayPlan, Place, TravelPreference } from '@/types';
+import type { ApiEnvelope, AppStep, DayPlan, Place, TravelPreference } from '@/types';
 
 const STORAGE_KEY = 'travel-ai-planner:v1';
 
@@ -25,6 +25,9 @@ export interface PlannerState {
   itinerary: DayPlan[];
   guideText: string;
   warning: string;
+  backendConnected: boolean;
+  aiEnabled: boolean | null;
+  dataSourceLabel: string;
 }
 
 function loadState(): PlannerState {
@@ -39,7 +42,10 @@ function loadState(): PlannerState {
       places: parsed.places || [],
       itinerary: parsed.itinerary || [],
       guideText: parsed.guideText || '',
-      warning: parsed.warning || ''
+      warning: parsed.warning || '',
+      backendConnected: parsed.backendConnected || false,
+      aiEnabled: typeof parsed.aiEnabled === 'boolean' ? parsed.aiEnabled : null,
+      dataSourceLabel: parsed.dataSourceLabel || ''
     };
   } catch {
     return {
@@ -49,7 +55,10 @@ function loadState(): PlannerState {
       places: [],
       itinerary: [],
       guideText: '',
-      warning: ''
+      warning: '',
+      backendConnected: false,
+      aiEnabled: null,
+      dataSourceLabel: ''
     };
   }
 }
@@ -73,10 +82,19 @@ export function usePlannerStore() {
       places: [],
       itinerary: [],
       guideText: '',
-      warning: ''
+      warning: '',
+      backendConnected: false,
+      aiEnabled: null,
+      dataSourceLabel: ''
     });
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return { state, resetPlan };
+  function updateRuntimeStatus<T>(response: ApiEnvelope<T>) {
+    state.backendConnected = response.backendMode === true;
+    state.aiEnabled = typeof response.aiEnabled === 'boolean' ? response.aiEnabled : state.aiEnabled;
+    state.dataSourceLabel = response.dataSourceLabel || (response.backendMode ? 'V3 后端' : '前端 Mock');
+  }
+
+  return { state, resetPlan, updateRuntimeStatus };
 }

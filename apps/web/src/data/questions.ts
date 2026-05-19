@@ -46,7 +46,7 @@ export const questions: Question[] = [
   {
     key: 'budgetLevel',
     title: '预算大概是什么水平？',
-    helper: 'V2.1 先用档位快速判断，后续会加入人均/每日预算等量化输入。',
+    helper: '当前先用档位快速判断，后续会加入人均/每日预算等量化输入。',
     kind: 'single',
     options: [
       { label: '低', value: 'low', description: '公共交通、平价餐饮、免费或低门票景点优先' },

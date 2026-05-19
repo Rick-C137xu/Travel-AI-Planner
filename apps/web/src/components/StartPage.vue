@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { isFrontendMockMode } from '@/services/api';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
 const { state } = usePlannerStore();
+const recommendationText = computed(() =>
+  isFrontendMockMode
+    ? '当前为 V2.1 / 前端 Mock 模式，使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。'
+    : '当前为 V3 后端模式，会请求后端推荐与行程接口；未配置 AI_API_KEY 时返回后端 Mock 数据。'
+);
 
 function start() {
   state.step = 'chat';
@@ -25,7 +32,7 @@ function start() {
       </div>
       <div class="feature-item">
         <strong>推荐候选地点</strong>
-        <span>V2.1 使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。</span>
+        <span>{{ recommendationText }}</span>
       </div>
       <div class="feature-item">
         <strong>生成每日行程</strong>

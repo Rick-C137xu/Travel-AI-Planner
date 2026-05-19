@@ -58,6 +58,16 @@ app.add_middleware(
 ai_client = AIClient()
 
 
+def backend_mock_envelope(data: object, warning: str) -> ApiEnvelope:
+    return ApiEnvelope(
+        data=data,
+        warning=warning,
+        dataSourceLabel="后端 Mock",
+        aiEnabled=False,
+        backendMode=True,
+    )
+
+
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "Travel AI Planner API", "version": API_VERSION}
@@ -105,9 +115,12 @@ def next_question(payload: NextQuestionRequest) -> ApiEnvelope:
 
 @app.post("/api/places/recommend")
 async def recommend_places(payload: RecommendRequest) -> ApiEnvelope:
-    fallback = mock_places(payload.preference)
+    fallback = mock_places(payload.preference, source="后端 Mock")
     if not ai_client.enabled:
-        return ApiEnvelope(data=[place.model_dump() for place in fallback], warning="未配置 AI_API_KEY，已使用 mock 候选地点。")
+        return backend_mock_envelope(
+            data=[place.model_dump() for place in fallback],
+            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 候选地点。",
+        )
 
     result, warning = await ai_client.json_completion(
         system_prompt=(
@@ -126,16 +139,22 @@ async def recommend_places(payload: RecommendRequest) -> ApiEnvelope:
     try:
         raw_places = result.get("places", result) if isinstance(result, dict) else result
         places = [Place.model_validate(item).model_dump() for item in raw_places]
-        return ApiEnvelope(data=places, warning=warning)
+        return ApiEnvelope(data=places, warning=warning, dataSourceLabel="AI 推荐", aiEnabled=True, backendMode=True)
     except Exception:
-        return ApiEnvelope(data=[place.model_dump() for place in fallback], warning=warning or "AI 地点 JSON 解析失败，已使用 mock 数据。")
+        return backend_mock_envelope(
+            data=[place.model_dump() for place in fallback],
+            warning=warning or "AI 地点 JSON 解析失败，已使用后端 Mock 数据。",
+        )
 
 
 @app.post("/api/places/extract")
 async def extract_places(payload: ExtractRequest) -> ApiEnvelope:
     fallback = mock_extract_places(payload.preference, payload.text)
     if not ai_client.enabled:
-        return ApiEnvelope(data=[place.model_dump() for place in fallback], warning="未配置 AI_API_KEY，已使用 mock 文本提取。")
+        return backend_mock_envelope(
+            data=[place.model_dump() for place in fallback],
+            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 文本提取。",
+        )
 
     result, warning = await ai_client.json_completion(
         system_prompt=(
@@ -147,16 +166,22 @@ async def extract_places(payload: ExtractRequest) -> ApiEnvelope:
     try:
         raw_places = result.get("places", result) if isinstance(result, dict) else result
         places = [Place.model_validate(item).model_dump() for item in raw_places]
-        return ApiEnvelope(data=places, warning=warning)
+        return ApiEnvelope(data=places, warning=warning, dataSourceLabel="AI 提取", aiEnabled=True, backendMode=True)
     except Exception:
-        return ApiEnvelope(data=[place.model_dump() for place in fallback], warning=warning or "AI 提取 JSON 解析失败，已使用 mock 数据。")
+        return backend_mock_envelope(
+            data=[place.model_dump() for place in fallback],
+            warning=warning or "AI 提取 JSON 解析失败，已使用后端 Mock 数据。",
+        )
 
 
 @app.post("/api/itinerary/generate")
 async def generate_itinerary(payload: ItineraryRequest) -> ApiEnvelope:
     fallback = mock_itinerary(payload.preference, payload.places)
     if not ai_client.enabled:
-        return ApiEnvelope(data=[day.model_dump() for day in fallback], warning="未配置 AI_API_KEY，已使用 mock 行程。")
+        return backend_mock_envelope(
+            data=[day.model_dump() for day in fallback],
+            warning="后端已连接成功，但未配置 AI_API_KEY，当前使用后端 Mock 行程。",
+        )
 
     density = {"relaxed": "每天 2-3 个主要地点", "normal": "每天 3-4 个主要地点", "intense": "每天 4-6 个主要地点"}[
         payload.preference.pace
@@ -177,9 +202,12 @@ async def generate_itinerary(payload: ItineraryRequest) -> ApiEnvelope:
     try:
         raw_days = result.get("days", result) if isinstance(result, dict) else result
         days = [DayPlan.model_validate(item).model_dump() for item in raw_days]
-        return ApiEnvelope(data=days, warning=warning)
+        return ApiEnvelope(data=days, warning=warning, dataSourceLabel="AI 行程", aiEnabled=True, backendMode=True)
     except Exception:
-        return ApiEnvelope(data=[day.model_dump() for day in fallback], warning=warning or "AI 行程 JSON 解析失败，已使用 mock 数据。")
+        return backend_mock_envelope(
+            data=[day.model_dump() for day in fallback],
+            warning=warning or "AI 行程 JSON 解析失败，已使用后端 Mock 数据。",
+        )
 
 
 def infer_end_date(start_date: str, days: int) -> str:

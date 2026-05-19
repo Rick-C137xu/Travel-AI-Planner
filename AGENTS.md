@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V3 Backend Deploy Ready，前端可作为纯静态站点部署到 Vercel / Cloudflare Pages，后端 FastAPI 可部署到 Render / Railway。
+本项目是“AI 出行旅游计划助手”。当前版本为 V3 Backend Connected，前端可作为纯静态站点部署到 Vercel / Cloudflare Pages，后端 FastAPI 可部署到 Render / Railway；Vercel 前端已经可以请求 Render 后端。
 
 后续 agent 修改项目时请遵守以下规则：
 
@@ -20,3 +20,5 @@
 14. V3 起允许部署 FastAPI 后端，但后端仍必须保留 Mock 降级；后端部署相关修改必须同步更新 `docs/DEPLOYMENT.md` 和 `docs/CHANGE_RECORD.md`。
 15. 环境变量示例文件可以提交，真实 `.env`、真实 API Key、Render / Railway / Vercel 私密配置不得提交，也不得写死到代码中。
 16. Mock 数据不得声称来自真实平台；如果展示来源，必须明确是 Mock 数据、用户粘贴文本或后续真实 API 能力。
+17. V3 前端文案必须区分“前端 Mock”“后端 Mock”和“后端请求失败后的前端 Mock 降级”。`VITE_USE_MOCK=false` 且后端接口返回 2xx 时，不要把后端 Mock 说成前端 Mock 或请求失败。
+18. V4 之前不要宣称已接入真实 AI 或真实地图数据；未配置 `AI_API_KEY` 时，后端返回的是后端 Mock 数据。
