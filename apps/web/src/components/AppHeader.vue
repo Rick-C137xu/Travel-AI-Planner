@@ -32,6 +32,7 @@ const versionLabel = computed(() => {
   const weatherSuffix = hasWeather ? ' + Weather' : '';
   const label = activeLabel;
   if (label === '高德地图 + 后端模板') return `Travel AI Planner · V4.3 AI Fallback${weatherSuffix}`;
+  if (label === '高德地图 + 规则文案') return `Travel AI Planner · V4.3 Amap + Rule Copy${weatherSuffix}`;
   if (label === '高德地图 + AI') return `Travel AI Planner · V4.3 AI + Amap${weatherSuffix}`;
   if (label === '高德地图') return `Travel AI Planner · V4.3 Amap${weatherSuffix}`;
   if (label === 'AI 生成') return `Travel AI Planner · V4.3 AI${weatherSuffix}`;

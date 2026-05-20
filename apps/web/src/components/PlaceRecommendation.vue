@@ -29,7 +29,10 @@ const sourceNote = computed(() => {
     return '当前为 V4.2 后端模式，正在请求后端推荐接口。';
   }
   if (label === '高德地图 + AI') {
-    return '当前为 V4.2 高德地图 + AI 模式：候选地点由高德地图返回真实 POI，并由 AI 补充推荐文案。';
+    return '当前为 V4.3 高德地图 + AI 模式：候选地点由高德地图返回真实 POI，并由 AI 补充推荐文案。';
+  }
+  if (label === '高德地图 + 规则文案') {
+    return '候选地点来自高德 POI 真实数据；AI 文案增强未生效，已用规则文案补充，整体功能仍可用。';
   }
   if (label === '高德地图 + 后端模板') {
     return '候选地点来自高德 POI，AI 补充文案失败，已使用规则文案。';
@@ -42,11 +45,14 @@ const sourceNote = computed(() => {
   }
   return '当前为 V4.2 后端 Mock 模式：后端已连接成功，但未配置 AI_API_KEY 与 AMAP_KEY，返回后端 Mock 数据。';
 });
-const aiFallbackNotice = computed(() =>
-  state.backendConnected && (state.placeSourceLabel || state.dataSourceLabel) === '高德地图 + 后端模板'
-    ? '候选地点来自高德 POI，AI 补充文案失败，已使用规则文案。'
-    : ''
-);
+const aiFallbackNotice = computed(() => {
+  if (!state.backendConnected) return '';
+  const label = state.placeSourceLabel || state.dataSourceLabel;
+  // V4.3.1：候选页 AI 文案增强失败时不再展示强提醒，地点本身仍来自高德 POI。
+  // 仅当后端语义为 "高德地图 + 后端模板"（行程级 AI Fallback 误传）时保留原文。
+  if (label === '高德地图 + 后端模板') return '候选地点来自高德 POI，AI 补充文案失败，已使用规则文案。';
+  return '';
+});
 
 async function loadPlaces() {
   loadingPlaces.value = true;
@@ -134,7 +140,10 @@ if (!state.places.length) {
       </div>
 
       <p v-if="aiFallbackNotice" class="warning-banner">{{ aiFallbackNotice }}</p>
-      <p v-if="state.placeWarning && state.placeWarning !== aiFallbackNotice" class="warning-banner">{{ state.placeWarning }}</p>
+      <p
+        v-if="state.placeWarning && state.placeWarning !== aiFallbackNotice && (state.placeSourceLabel || state.dataSourceLabel) !== '高德地图 + 规则文案'"
+        class="warning-banner"
+      >{{ state.placeWarning }}</p>
       <PasteGuidePanel />
       <div v-if="loadingPlaces" class="empty-state">正在生成候选地点...</div>
       <div v-else class="place-grid compact-place-grid">

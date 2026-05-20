@@ -103,9 +103,10 @@ class PlannerService:
                     warning=warning,
                 )
             if places and not ai_succeeded:
-                # POI 仍来自高德，文案降级为模板；明确告知用户 AI 失败
+                # V4.3.1：候选地点 POI 来自高德成功，仅 AI 文案增强失败时，
+                # 使用独立标签 "高德地图 + 规则文案"，不要与行程 AI Fallback 共用语义。
                 return places, _meta(
-                    label="高德地图 + 后端模板",
+                    label="高德地图 + 规则文案",
                     ai=True,
                     amap=True,
                     warning=_ai_fallback_warning(warning, keep_amap_places=True),
@@ -250,10 +251,11 @@ class PlannerService:
             }
             for poi in pois
         ]
+        annotate_max_tokens = min(900, 110 * max(1, len(compact)))
         result, warning = await self.ai.json_completion(
             system_prompt=(
                 "你是旅行规划助手。给定一组真实 POI 数据，请补充每个地点的推荐理由、适合人群、"
-                "建议停留时间和避坑提醒。只返回 JSON，格式为 {\"places\": "
+                "建议停留时间和避坑提醒。只返回 JSON object，格式为 {\"places\": "
                 "[{\"name\": str, \"reason\": str, \"suitableFor\": str, \"estimatedTime\": str, \"warning\": str}]}。"
                 "name 必须与输入完全一致；不要返回 Markdown，不要新增地点。"
             ),
@@ -261,19 +263,11 @@ class PlannerService:
                 f"旅行需求：{preference.model_dump_json()}\n"
                 f"待补充的 POI 列表：{json.dumps(compact, ensure_ascii=False)}"
             ),
+            temperature=0.3,
+            timeout=20.0,
+            max_tokens=annotate_max_tokens,
         )
-        annotations: dict[str, dict[str, str]] = {}
-        if isinstance(result, dict):
-            raw_list = result.get("places") or []
-            for item in raw_list:
-                if isinstance(item, dict) and isinstance(item.get("name"), str):
-                    annotations[item["name"]] = {
-                        "reason": str(item.get("reason") or ""),
-                        "suitableFor": str(item.get("suitableFor") or ""),
-                        "estimatedTime": str(item.get("estimatedTime") or ""),
-                        "warning": str(item.get("warning") or ""),
-                    }
-
+        annotations = _coerce_place_annotations(result)
         annotate_ok = bool(annotations)
         places: list[Place] = []
         for poi in pois:
@@ -665,6 +659,44 @@ def _preview_json(value: Any, *, limit: int = 300) -> str:
     except TypeError:
         preview = str(value)
     return preview[:limit] + ("...<truncated>" if len(preview) > limit else "")
+
+
+def _coerce_place_annotations(result: Any) -> dict[str, dict[str, str]]:
+    """V4.3.1：宽容解析候选地点 AI 文案增强返回。
+
+    支持的形态：
+    - {"places": [...]}（标准）
+    - {"data" | "items" | "results" | "list": [...]}（兼容字段）
+    - 直接返回 list[...]（root array）
+    - 单个 dict（看作仅包含一个 annotation）
+
+    任何形态失败都返回空 dict，由上层走规则文案 fallback，不抛异常。
+    """
+    raw: list[Any] = []
+    if isinstance(result, list):
+        raw = result
+    elif isinstance(result, dict):
+        for key in ("places", "data", "items", "results", "list", "annotations"):
+            value = result.get(key)
+            if isinstance(value, list) and value:
+                raw = value
+                break
+        if not raw and isinstance(result.get("name"), str):
+            raw = [result]
+    annotations: dict[str, dict[str, str]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        annotations[name.strip()] = {
+            "reason": str(item.get("reason") or ""),
+            "suitableFor": str(item.get("suitableFor") or item.get("suitable_for") or ""),
+            "estimatedTime": str(item.get("estimatedTime") or item.get("estimated_time") or ""),
+            "warning": str(item.get("warning") or ""),
+        }
+    return annotations
 
 
 def _safe_parse_places(result: Any) -> list[Place]:

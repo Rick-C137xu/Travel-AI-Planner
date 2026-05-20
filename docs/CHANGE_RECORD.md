@@ -1,5 +1,27 @@
 # Change Record
 
+## 2026-05-20 V4.3.1 候选地点 AI 文案 hotfix（candidate AI copy fallback / status）
+
+### 问题
+
+- 候选页 POI 来自高德成功，但 AI 文案增强（`_ai_annotate_pois`）解析失败时，旧逻辑使用与行程 AI Fallback 同名标签 `"高德地图 + 后端模板"`，让前端 Header 误显示成 `V4.3 AI Fallback`，且红色横条提示「AI 请求失败」，让用户误以为整体 AI 失败。
+
+### 修改
+
+- `apps/api/app/services/planner_service.py`
+  - `_recommend_ai_amap` 在 POI 成功 + AI 文案失败时改为新标签 `"高德地图 + 规则文案"`，与行程级 `"高德地图 + 后端模板"` 语义解耦。
+  - `_ai_annotate_pois` 显式传入 `temperature=0.3 / timeout=20s / max_tokens=min(900, 110×POI 数)`，失败更快且不放大 token 消耗。
+  - 新增 `_coerce_place_annotations`：宽容解析 AI 文案返回，支持 `{"places":[...]}`、`{"data"|"items"|"results"|"list"|"annotations":[...]}`、root array、单 dict；不抛异常，失败返回空 dict 由上层走规则文案。
+- `apps/web/src/components/AppHeader.vue`：新增 `"高德地图 + 规则文案" → V4.3 Amap + Rule Copy` 映射；行程页天气 `+ Weather` 后缀逻辑保持不变。
+- `apps/web/src/components/PlaceRecommendation.vue`：新增 `"高德地图 + 规则文案"` 文案；该标签下不再显示红色 `aiFallbackNotice` / `placeWarning`，只保留 `source-note` 中的温和提示。
+- `docs/DEPLOYMENT.md`：补充 V4.3.1 候选页状态映射与验证步骤。
+
+### 不变
+
+- 未修改 `AI_API_KEY / AI_MODEL / AMAP_KEY / VITE_*`；未改 Render / Vercel 配置；未改前端高德 JS Key / securityJsCode。
+- 行程页状态独立判断：行程 AI 成功仍显示 `V4.3 AI + Amap + Weather`；行程 AI 失败仍是 `V4.3 AI Fallback (+ Weather)`，与候选页独立。
+- AI prompt 长度未增加；`max_tokens` 在候选 annotate 路径上被收紧，token 消耗只减不增。
+
 ## 2026-05-20 V4.3 高德天气集成
 
 ### 新增 / 修改

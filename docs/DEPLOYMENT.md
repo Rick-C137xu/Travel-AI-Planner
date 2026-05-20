@@ -293,6 +293,26 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 
 `/api/debug/config` 用来判断当前后端能力（`aiEnabled / amapEnabled / dataMode`）；具体一次请求实际走的路径以 envelope.dataSourceLabel 为准。`/api/debug/config` 不返回任何 `*_KEY` 字段。
 
+### V4.3.1 候选页状态映射
+
+候选页状态完全由 `placeSourceLabel` 决定，行程页由 `itinerarySourceLabel` 决定，互不影响。
+
+| 候选页 dataSourceLabel | 候选页 Header | 候选页提示 |
+| --- | --- | --- |
+| `高德地图 + AI` | `V4.3 AI + Amap` | 高德 POI + AI 文案 |
+| `高德地图 + 规则文案` | `V4.3 Amap + Rule Copy` | 候选地点来自高德 POI 真实数据；AI 文案增强未生效，已用规则文案补充（无红色横条） |
+| `高德地图 + 后端模板` | `V4.3 AI Fallback` | 行程级 AI Fallback 语义，候选页一般不再产生 |
+| `高德地图` | `V4.3 Amap` | 仅高德，无 AI |
+| `AI 生成` | `V4.3 AI` | 仅 AI |
+| `后端 Mock` | `V4.3 Backend Mock` | 都没配置 |
+
+部署后建议验证：
+
+1. Render Manual Deploy 后端，等到状态为 Live。
+2. 重新打开 Vercel 前端，进入候选页，根据当前 AI 文案是否成功，Header 应显示 `V4.3 AI + Amap` 或 `V4.3 Amap + Rule Copy`，不再出现 `V4.3 AI Fallback`，也不再出现红色「AI 请求失败」横条。
+3. 进入行程页：行程 AI 成功仍显示 `V4.3 AI + Amap + Weather`；若行程 AI 真的失败，Header 才会显示 `V4.3 AI Fallback (+ Weather)`。
+4. `/api/debug/ai?probe=1`、`/api/debug/weather` 仍可用，无 Key 泄漏。
+
 ### /api/debug/weather 调试接口（V4.3）
 
 天气服务复用已有 `AMAP_KEY`，无需新增环境变量。
