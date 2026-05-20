@@ -2,6 +2,19 @@
 
 ## 2026-05-20 V4.1.2 AI stability/token hotfix
 
+### 追加修复：行程 JSON 输出与解析诊断
+
+- `apps/api/app/services/ai_client.py`
+  - 新增 `json_completion_detailed()`，在业务调用失败时返回结构化诊断：`errorType / errorMessage / rawPreview / choicesContentFound / parsedJsonOk`。
+  - 明确区分是否成功读取 `choices[0].message.content`、是否成功解析 JSON。
+  - HTTP body 非 JSON、AI content 非 JSON、Markdown fence 或前后解释文字等情况继续只返回脱敏短 `rawPreview`。
+- `apps/api/app/services/planner_service.py`
+  - `/api/itinerary/generate` 使用 detailed AI 调用；AI 成功但短 schema 无法映射为前端 `DayPlan` 时，返回 `itinerary_schema_error` 而不是笼统格式异常。
+  - 兼容 `days / itinerary / plan / data` 等常见顶层字段；若对象本身就是单日计划，也会尝试按单日解析。
+  - 行程 prompt 进一步强调只返回严格 `json object`，不返回 Markdown 或解释文字。
+- `apps/api/app/models.py` 与 `apps/api/app/main.py`
+  - `ApiEnvelope` 增加 AI 安全诊断字段，便于线上从 Network 判断是 content 读取失败、JSON 解析失败，还是 schema 映射失败。
+
 ### 背景
 
 DeepSeek 与高德均已在线启用，`/api/debug/ai` 可探测成功，但默认访问 debug 接口会消耗 token；业务接口偶尔因 AI 多输出解释文字、Markdown fence 或 JSON 结构不完全匹配而降级为后端模板。本次只做稳定性与省 token hotfix，不重构、不新增平台、不修改 Key 或模型名。

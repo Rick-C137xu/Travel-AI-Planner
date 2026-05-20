@@ -54,6 +54,11 @@ def _envelope(data: Any, meta: dict[str, Any]) -> ApiEnvelope:
         aiEnabled=meta.get("aiEnabled"),
         amapEnabled=meta.get("amapEnabled"),
         backendMode=meta.get("backendMode", True),
+        aiErrorType=meta.get("aiErrorType"),
+        aiErrorMessage=meta.get("aiErrorMessage"),
+        aiRawPreview=meta.get("aiRawPreview"),
+        aiChoicesContentFound=meta.get("aiChoicesContentFound"),
+        aiParsedJsonOk=meta.get("aiParsedJsonOk"),
     )
 
 

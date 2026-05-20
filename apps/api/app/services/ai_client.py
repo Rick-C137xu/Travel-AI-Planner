@@ -89,6 +89,33 @@ class AIClient:
         if not self.enabled:
             return None, "未配置 AI_API_KEY，已使用 Mock 数据。"
 
+        result, warning, _diagnostic = await self.json_completion_detailed(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            timeout=timeout,
+            max_tokens=max_tokens,
+        )
+        return result, warning
+
+    async def json_completion_detailed(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        temperature: float = 0.4,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+    ) -> tuple[Any | None, str | None, dict[str, Any]]:
+        if not self.enabled:
+            return None, "未配置 AI_API_KEY，已使用 Mock 数据。", {
+                "errorType": "not_configured",
+                "errorMessage": "AI_API_KEY 未配置",
+                "rawPreview": "",
+                "choicesContentFound": False,
+                "parsedJsonOk": False,
+            }
+
         outcome = await self._raw_chat_completion(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -99,16 +126,34 @@ class AIClient:
         )
         if outcome["ok"]:
             content = outcome["content"]
+            diagnostic = {
+                "errorType": None,
+                "errorMessage": None,
+                "rawPreview": _sanitize(content, limit=300),
+                "choicesContentFound": True,
+                "parsedJsonOk": False,
+            }
             try:
-                return parse_json_content(content), None
+                parsed = parse_json_content(content)
+                diagnostic["parsedJsonOk"] = True
+                return parsed, None, diagnostic
             except (ValueError, json.JSONDecodeError) as exc:
                 logger.warning(
                     "AI JSON parse failed: errorType=json_parse_error, model=%s, preview=%s",
                     self._settings.ai_model,
-                    _sanitize(content, limit=500),
+                    diagnostic["rawPreview"],
                 )
-                return None, "AI 返回格式异常，已使用后端模板"
-        return None, outcome["warning"]
+                diagnostic["errorType"] = "json_parse_error"
+                diagnostic["errorMessage"] = f"AI JSON 解析失败：{exc}"
+                return None, "AI 返回格式异常，已使用后端模板", diagnostic
+        diagnostic = {
+            "errorType": outcome.get("errorType"),
+            "errorMessage": outcome.get("warning"),
+            "rawPreview": _sanitize(outcome.get("rawPreview", ""), limit=300),
+            "choicesContentFound": outcome.get("choicesContentFound", False),
+            "parsedJsonOk": False,
+        }
+        return None, outcome["warning"], diagnostic
 
     async def debug_probe(self, *, timeout: float = DEBUG_TIMEOUT_SECONDS) -> dict[str, Any]:
         """调试用：发起一次最小化 chat/completions 请求，返回结构化诊断。
@@ -206,6 +251,7 @@ class AIClient:
             "statusCode": None,
             "errorType": None,
             "rawPreview": "",
+            "choicesContentFound": False,
         }
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -225,7 +271,19 @@ class AIClient:
                 result["rawPreview"] = preview
                 return result
 
-            body = response.json()
+            try:
+                body = response.json()
+            except json.JSONDecodeError:
+                preview = _sanitize(response.text, limit=500)
+                logger.warning(
+                    "AI response not JSON: model=%s, preview=%s",
+                    self._settings.ai_model,
+                    preview,
+                )
+                result["errorType"] = "json_parse_error"
+                result["warning"] = "AI 返回格式异常，已使用后端模板"
+                result["rawPreview"] = preview
+                return result
             try:
                 content = body["choices"][0]["message"]["content"]
             except (KeyError, IndexError, TypeError):
@@ -238,6 +296,7 @@ class AIClient:
                 result["errorType"] = "empty_content"
                 result["warning"] = "AI 返回格式异常，已使用后端模板"
                 result["rawPreview"] = preview
+                result["choicesContentFound"] = False
                 return result
 
             if not content or not str(content).strip():
@@ -250,10 +309,12 @@ class AIClient:
                 result["errorType"] = "empty_content"
                 result["warning"] = "AI 返回格式异常，已使用后端模板"
                 result["rawPreview"] = preview
+                result["choicesContentFound"] = False
                 return result
 
             result["ok"] = True
             result["content"] = content
+            result["choicesContentFound"] = True
             return result
 
         except httpx.TimeoutException as exc:

@@ -14,6 +14,7 @@
 - `/api/itinerary/generate` 继续以高德 POI 作为地点来源。
 - 发送给 DeepSeek 的地点字段已精简为 `id/name/type/address/reason/estimatedTime/warning`，最多 8 个已选地点。
 - AI 返回 Markdown fence、JSON 前后解释文字、JSON object 或 array 时，后端会尽量提取并解析。
+- 若仍降级为后端模板，`POST /api/itinerary/generate` 的 envelope 会包含安全诊断字段：`aiErrorType`、`aiErrorMessage`、`aiRawPreview`、`aiChoicesContentFound`、`aiParsedJsonOk`。这些字段用于判断是否成功读取 `choices[0].message.content`、是否 JSON 解析失败、是否 schema 映射失败；不会返回任何 Key 或完整 AI 响应。
 - AI 仍失败时保留原有后端模板 fallback，不影响主流程。
 
 ## V4.1.1 AI 行程生成 timeout/token hotfix

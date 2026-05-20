@@ -65,6 +65,11 @@ class ApiEnvelope(BaseModel):
     aiEnabled: bool | None = None
     amapEnabled: bool | None = None
     backendMode: bool | None = None
+    aiErrorType: str | None = None
+    aiErrorMessage: str | None = None
+    aiRawPreview: str | None = None
+    aiChoicesContentFound: bool | None = None
+    aiParsedJsonOk: bool | None = None
 
 
 class PreferenceRequest(BaseModel):

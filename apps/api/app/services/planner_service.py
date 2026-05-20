@@ -436,16 +436,16 @@ class PlannerService:
             compact_places = _compact_places_for_itinerary(ordered)
             compact_preference = _compact_preference_for_ai(preference)
             itinerary_max_tokens = 900 if preference.days <= 3 else 1000
-            result, warning = await self.ai.json_completion(
+            result, warning, ai_diagnostic = await self.ai.json_completion_detailed(
                 system_prompt=(
-                    "你是旅行行程规划助手。只返回严格 JSON，不要 markdown，不要解释。"
-                    "格式：{\"days\":[{\"title\":\"\",\"date\":\"\",\"items\":["
+                    "你是旅行行程规划助手。只返回严格 json object，不要 markdown，不要解释。"
+                    "只能输出这个 JSON 结构：{\"days\":[{\"title\":\"\",\"date\":\"\",\"items\":["
                     "{\"time\":\"09:00-11:00\",\"placeName\":\"\",\"description\":\"短句\","
                     "\"duration\":\"\",\"tips\":\"短句\"}]}]}。"
-                    "只能使用输入地点 name，description/tips 保持简短。"
+                    "只能使用输入地点 name。description/tips 每项不超过 30 个中文字符。"
                 ),
                 user_prompt=(
-                    "生成行程 JSON。\n"
+                    "生成行程 json，只输出 JSON 对象。\n"
                     f"需求：{json.dumps(compact_preference, ensure_ascii=False)}\n"
                     f"密度：{density}\n"
                     f"地点（最多 {ITINERARY_AI_PLACE_LIMIT} 个，已排序）："
@@ -463,6 +463,15 @@ class PlannerService:
                     amap=amap_on,
                     warning=warning,
                 )
+            if result is not None and not warning:
+                warning = "AI itinerary schema parse failed"
+                ai_diagnostic = {
+                    **ai_diagnostic,
+                    "errorType": "itinerary_schema_error",
+                    "errorMessage": "AI JSON 已解析，但未能映射为 DayPlan/ItineraryItem",
+                    "rawPreview": _preview_json(result),
+                    "parsedJsonOk": True,
+                }
             # AI 失败：若有高德，POI 仍来自高德，文案/行程模板降级
             mock = mock_itinerary(preference, ordered)
             fallback_label = "高德地图 + 后端模板" if amap_on else "后端 Mock"
@@ -476,6 +485,7 @@ class PlannerService:
                 ai=True,
                 amap=amap_on,
                 warning=fallback_warning,
+                ai_diagnostic=ai_diagnostic,
             )
 
         # 没有 AI 时直接走 mock
@@ -494,14 +504,32 @@ class PlannerService:
         )
 
 
-def _meta(*, label: str, ai: bool, amap: bool, warning: str | None) -> dict[str, Any]:
-    return {
+def _meta(
+    *,
+    label: str,
+    ai: bool,
+    amap: bool,
+    warning: str | None,
+    ai_diagnostic: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    meta = {
         "dataSourceLabel": label,
         "aiEnabled": ai,
         "amapEnabled": amap,
         "backendMode": True,
         "warning": warning,
     }
+    if ai_diagnostic:
+        meta.update(
+            {
+                "aiErrorType": ai_diagnostic.get("errorType"),
+                "aiErrorMessage": ai_diagnostic.get("errorMessage"),
+                "aiRawPreview": ai_diagnostic.get("rawPreview"),
+                "aiChoicesContentFound": ai_diagnostic.get("choicesContentFound"),
+                "aiParsedJsonOk": ai_diagnostic.get("parsedJsonOk"),
+            }
+        )
+    return meta
 
 
 def _ai_fallback_warning(warning: str | None, *, keep_amap_places: bool) -> str:
@@ -612,6 +640,14 @@ def _compact_places_for_itinerary(places: list[Place]) -> list[dict[str, Any]]:
     return compact
 
 
+def _preview_json(value: Any, *, limit: int = 300) -> str:
+    try:
+        preview = json.dumps(value, ensure_ascii=False)
+    except TypeError:
+        preview = str(value)
+    return preview[:limit] + ("...<truncated>" if len(preview) > limit else "")
+
+
 def _safe_parse_places(result: Any) -> list[Place]:
     if isinstance(result, dict):
         raw = result.get("places") or result.get("data") or []
@@ -633,7 +669,9 @@ def _safe_parse_places(result: Any) -> list[Place]:
 
 def _safe_parse_days(result: Any) -> list[DayPlan]:
     if isinstance(result, dict):
-        raw = result.get("days") or result.get("data") or []
+        raw = result.get("days") or result.get("itinerary") or result.get("plan") or result.get("data") or []
+        if not raw and "items" in result:
+            raw = [result]
     elif isinstance(result, list):
         raw = result
     else:
