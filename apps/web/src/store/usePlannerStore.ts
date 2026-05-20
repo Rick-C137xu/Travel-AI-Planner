@@ -1,5 +1,5 @@
 import { reactive, watch } from 'vue';
-import type { ApiEnvelope, AppStep, DayPlan, Place, TravelPreference } from '@/types';
+import type { ApiEnvelope, AppStep, DayPlan, Place, TravelPreference, WeatherInfo } from '@/types';
 
 const STORAGE_KEY = 'travel-ai-planner:v1';
 const ITINERARY_CACHE_PREFIX = 'travel-ai-planner:itinerary:v1:';
@@ -14,6 +14,7 @@ interface ItineraryCacheEntry {
   aiEnabled: boolean | null;
   amapEnabled: boolean | null;
   createdAt: string;
+  weather?: WeatherInfo | null;
 }
 
 export const defaultPreference = (): TravelPreference => ({
@@ -46,6 +47,7 @@ export interface PlannerState {
   itinerarySourceLabel: string;
   placeWarning: string;
   itineraryWarning: string;
+  weather: WeatherInfo | null;
 }
 
 function normalizeList(values: string[]) {
@@ -110,7 +112,8 @@ function readItineraryCache(cacheKey: string): ItineraryCacheEntry | null {
       backendConnected: parsed.backendConnected === true,
       aiEnabled: typeof parsed.aiEnabled === 'boolean' ? parsed.aiEnabled : null,
       amapEnabled: typeof parsed.amapEnabled === 'boolean' ? parsed.amapEnabled : null,
-      createdAt: parsed.createdAt || ''
+      createdAt: parsed.createdAt || '',
+      weather: parsed.weather && typeof parsed.weather === 'object' ? parsed.weather : null
     };
   } catch {
     return null;
@@ -145,7 +148,8 @@ function loadState(): PlannerState {
       placeSourceLabel: parsed.placeSourceLabel || parsed.dataSourceLabel || '',
       itinerarySourceLabel: parsed.itinerarySourceLabel || (parsed.step === 'itinerary' ? parsed.dataSourceLabel || '' : ''),
       placeWarning: parsed.placeWarning || '',
-      itineraryWarning: parsed.itineraryWarning || ''
+      itineraryWarning: parsed.itineraryWarning || '',
+      weather: parsed.weather && typeof parsed.weather === 'object' ? parsed.weather : null
     };
   } catch {
     return {
@@ -163,7 +167,8 @@ function loadState(): PlannerState {
       placeSourceLabel: '',
       itinerarySourceLabel: '',
       placeWarning: '',
-      itineraryWarning: ''
+      itineraryWarning: '',
+      weather: null
     };
   }
 }
@@ -196,7 +201,8 @@ export function usePlannerStore() {
       placeSourceLabel: '',
       itinerarySourceLabel: '',
       placeWarning: '',
-      itineraryWarning: ''
+      itineraryWarning: '',
+      weather: null
     });
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -214,6 +220,8 @@ export function usePlannerStore() {
     if (scope === 'itinerary') {
       state.itinerarySourceLabel = label;
       state.itineraryWarning = response.warning || '';
+      // V4.3：行程响应可能携带天气；失败/空时清空但不影响主流程。
+      state.weather = response.weather && response.weather.status === 'ok' ? response.weather : null;
     }
   }
 
@@ -230,7 +238,8 @@ export function usePlannerStore() {
       backendConnected: state.backendConnected,
       aiEnabled: state.aiEnabled,
       amapEnabled: state.amapEnabled,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      weather: state.weather
     });
   }
 

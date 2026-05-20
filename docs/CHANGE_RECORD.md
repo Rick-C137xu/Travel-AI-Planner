@@ -1,5 +1,29 @@
 # Change Record
 
+## 2026-05-20 V4.3 高德天气集成
+
+### 新增 / 修改
+
+- `apps/api/app/services/weather_client.py`：新增高德 `weatherInfo` 封装，复用 `AMAP_KEY`，并行请求 live(`base`) + forecast(`all`)，timeout=6s，失败统一返回 `status=error/disabled` 不抛异常；提供 `build_prompt_line()` 生成单行天气提示。
+- `apps/api/app/services/planner_service.py`：`PlannerService` 注入 `WeatherClient`，`generate_itinerary` 中按 `preference.destination` 安全拉一次天气，将单行摘要拼入 AI prompt（不放完整 JSON），meta 中携带 `weather`；AI 失败 / 无 AI 路径均会回写 weather；天气失败不影响主流程。
+- `apps/api/app/models.py`：`ApiEnvelope` 增加 `weather: dict | None` 字段。
+- `apps/api/app/main.py`：注册 `WeatherClient`，`_envelope` 透传 weather；新增 `GET /api/debug/weather?city=...`，AMAP_KEY 未配置返回 `status=disabled`，调用失败返回 `status=error` 并附 reason，不暴露 Key。
+- `apps/api/app/config.py`：`version` 升级 `v4.1` → `v4.3`。
+- `apps/web/src/types.ts`：新增 `WeatherInfo / WeatherForecastDay`，`ApiEnvelope.weather`。
+- `apps/web/src/store/usePlannerStore.ts`：`PlannerState.weather` + 行程缓存条目 `weather`；`updateRuntimeStatus('itinerary')` 写入；`saveCurrentItineraryToCache` 持久化；`PlaceRecommendation.vue` 命中缓存时恢复 `state.weather`，天气接口失败不破坏缓存。
+- `apps/web/src/components/ItineraryView.vue`：行程页新增「天气参考」精简卡片，显示天气/温度/湿度/风向风力/更新时间；无数据展示「暂无天气参考」，不影响主流程。
+- `apps/web/src/components/AppHeader.vue`：行程页且 `state.weather.status==='ok'` 时版本签追加 ` + Weather`，例如 `V4.3 AI + Amap + Weather`；候选页保持原标签；版本前缀整体升 V4.3。
+- `apps/web/src/styles.css`：新增 `.weather-card / .weather-title / .weather-time / .weather-empty` 极简样式。
+- `docs/DEPLOYMENT.md`：补充 V4.3 部署与 `/api/debug/weather` 验证步骤。
+
+### 安全约束
+
+- 未写死 / 未提交任何真实 Key；天气服务复用现有 `AMAP_KEY`；不修改 `AI_API_KEY` / `AI_MODEL` / 前端高德 JS Key / securityJsCode。
+- `/api/debug/weather` 与 envelope.weather 都不返回 Key；高德原始 raw 不透传。
+- 天气接口超时/失败/无 Key 时安全 fallback，主流程（推荐 / 行程生成）继续运行。
+
+
+
 ## 2026-05-20 V4.2 稳定体验版
 
 ### 背景

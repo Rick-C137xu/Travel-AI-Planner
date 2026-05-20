@@ -70,6 +70,7 @@ class ApiEnvelope(BaseModel):
     aiRawPreview: str | None = None
     aiChoicesContentFound: bool | None = None
     aiParsedJsonOk: bool | None = None
+    weather: dict[str, Any] | None = None
 
 
 class PreferenceRequest(BaseModel):

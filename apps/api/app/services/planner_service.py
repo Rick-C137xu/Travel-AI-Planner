@@ -21,6 +21,7 @@ from ..mock_data import mock_extract_places, mock_itinerary, mock_places
 from ..models import DayPlan, ItineraryItem, Place, TravelPreference
 from .ai_client import AIClient
 from .amap_client import AmapClient
+from .weather_client import WeatherClient, build_prompt_line
 
 
 ITINERARY_AI_PLACE_LIMIT = 8
@@ -78,10 +79,12 @@ class PlannerService:
         settings: Settings,
         ai: AIClient | None = None,
         amap: AmapClient | None = None,
+        weather: WeatherClient | None = None,
     ) -> None:
         self.settings = settings
         self.ai = ai or AIClient(settings)
         self.amap = amap or AmapClient(settings)
+        self.weather = weather or WeatherClient(settings)
 
     # ---- 推荐地点 ----
     async def recommend_places(
@@ -426,6 +429,8 @@ class PlannerService:
             )
 
         ordered = _sort_places_by_geo(places) if amap_on else list(places)
+        weather = await self._fetch_weather_safe(preference.destination)
+        weather_prompt = build_prompt_line(weather) if weather else ""
 
         if ai_on:
             density = {
@@ -448,7 +453,8 @@ class PlannerService:
                     "生成行程 json，只输出 JSON 对象。\n"
                     f"需求：{json.dumps(compact_preference, ensure_ascii=False)}\n"
                     f"密度：{density}\n"
-                    f"地点（最多 {ITINERARY_AI_PLACE_LIMIT} 个，已排序）："
+                    + (f"{weather_prompt}\n" if weather_prompt else "")
+                    + f"地点（最多 {ITINERARY_AI_PLACE_LIMIT} 个，已排序）："
                     f"{json.dumps(compact_places, ensure_ascii=False)}"
                 ),
                 temperature=0.3,
@@ -462,6 +468,7 @@ class PlannerService:
                     ai=True,
                     amap=amap_on,
                     warning=warning,
+                    weather=weather,
                 )
             if result is not None and not warning:
                 warning = "AI itinerary schema parse failed"
@@ -486,6 +493,7 @@ class PlannerService:
                 amap=amap_on,
                 warning=fallback_warning,
                 ai_diagnostic=ai_diagnostic,
+                weather=weather,
             )
 
         # 没有 AI 时直接走 mock
@@ -501,7 +509,15 @@ class PlannerService:
             ai=False,
             amap=amap_on,
             warning=warning,
+            weather=weather,
         )
+
+    async def _fetch_weather_safe(self, destination: str) -> dict[str, Any] | None:
+        """异常吞掉，绝不影响行程主流程。"""
+        try:
+            return await self.weather.fetch_summary(destination)
+        except Exception:  # noqa: BLE001
+            return None
 
 
 def _meta(
@@ -511,6 +527,7 @@ def _meta(
     amap: bool,
     warning: str | None,
     ai_diagnostic: dict[str, Any] | None = None,
+    weather: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     meta = {
         "dataSourceLabel": label,
@@ -519,6 +536,8 @@ def _meta(
         "backendMode": True,
         "warning": warning,
     }
+    if weather:
+        meta["weather"] = weather
     if ai_diagnostic:
         meta.update(
             {

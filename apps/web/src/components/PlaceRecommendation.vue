@@ -87,6 +87,7 @@ async function buildItinerary() {
       state.aiEnabled = cached.aiEnabled;
       state.amapEnabled = cached.amapEnabled;
       state.dataSourceLabel = cached.sourceLabel;
+      state.weather = cached.weather ?? null;
       state.step = 'itinerary';
       return;
     }

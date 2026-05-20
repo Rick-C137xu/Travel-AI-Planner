@@ -373,6 +373,36 @@ button:disabled {
   font-size: 14px;
 }
 
+.weather-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 8px 0;
+  padding: 10px 14px;
+  border: 1px solid #cdd9ec;
+  border-radius: 8px;
+  background: #f1f5fc;
+  color: #2a3f63;
+  font-size: 14px;
+}
+
+.weather-title {
+  font-weight: 600;
+  color: #1f3358;
+}
+
+.weather-time {
+  color: #6a7a99;
+  font-size: 12px;
+}
+
+.weather-empty {
+  background: #f3f4f6;
+  border-color: #d8dbe1;
+  color: #6b7280;
+}
+
 .place-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

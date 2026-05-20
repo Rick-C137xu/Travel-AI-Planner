@@ -29,7 +29,7 @@ def _parse_origins(raw_value: str | None) -> tuple[list[str], bool]:
 @dataclass(frozen=True)
 class Settings:
     service_name: str = "travel-ai-planner-api"
-    version: str = "v4.1"
+    version: str = "v4.3"
 
     ai_provider: str = "openai-compatible"
     ai_api_key: str = ""

@@ -19,6 +19,7 @@ from .models import (
 from .services.ai_client import AIClient
 from .services.amap_client import AmapClient
 from .services.planner_service import PlannerService
+from .services.weather_client import WeatherClient
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT_DIR / ".env")
@@ -43,7 +44,8 @@ app.add_middleware(
 
 ai_client = AIClient(settings)
 amap_client = AmapClient(settings)
-planner = PlannerService(settings, ai=ai_client, amap=amap_client)
+weather_client = WeatherClient(settings)
+planner = PlannerService(settings, ai=ai_client, amap=amap_client, weather=weather_client)
 
 
 def _envelope(data: Any, meta: dict[str, Any]) -> ApiEnvelope:
@@ -59,6 +61,7 @@ def _envelope(data: Any, meta: dict[str, Any]) -> ApiEnvelope:
         aiRawPreview=meta.get("aiRawPreview"),
         aiChoicesContentFound=meta.get("aiChoicesContentFound"),
         aiParsedJsonOk=meta.get("aiParsedJsonOk"),
+        weather=meta.get("weather"),
     )
 
 
@@ -120,6 +123,24 @@ async def debug_ai(probe: bool = Query(False)) -> dict[str, Any]:
     if not probe:
         return ai_client.debug_status()
     return await ai_client.debug_probe()
+
+
+@app.get("/api/debug/weather")
+async def debug_weather(city: str = Query("杭州")) -> dict[str, Any]:
+    """V4.3 调试接口：用现有 AMAP_KEY 查询一次高德天气，返回脱敏摘要。
+
+    - 不返回任何 Key；只暴露 city / weather / temperature / humidity / wind / reporttime / forecast。
+    - AMAP_KEY 未配置时返回 status=disabled。
+    - 高德返回失败时返回 status=error 并附 reason，不抛 500。
+    """
+    if not weather_client.enabled:
+        return {
+            "status": "disabled",
+            "reason": "AMAP_KEY 未配置，无法查询天气。",
+            "amapEnabled": False,
+        }
+    summary = await weather_client.fetch_summary(city)
+    return {**summary, "amapEnabled": True}
 
 
 @app.post("/api/chat/next-question")

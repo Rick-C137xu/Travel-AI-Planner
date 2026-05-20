@@ -49,6 +49,31 @@ export interface DayPlan {
   items: ItineraryItem[];
 }
 
+export interface WeatherForecastDay {
+  date: string;
+  week?: string;
+  dayweather?: string;
+  nightweather?: string;
+  daytemp?: string;
+  nighttemp?: string;
+  daywind?: string;
+  daypower?: string;
+}
+
+export interface WeatherInfo {
+  status: 'ok' | 'error' | 'disabled' | string;
+  source?: string;
+  city?: string;
+  weather?: string;
+  temperature?: string;
+  winddirection?: string;
+  windpower?: string;
+  humidity?: string;
+  reporttime?: string;
+  forecast?: WeatherForecastDay[];
+  reason?: string;
+}
+
 export interface ApiEnvelope<T> {
   data: T;
   warning?: string;
@@ -56,6 +81,7 @@ export interface ApiEnvelope<T> {
   aiEnabled?: boolean;
   amapEnabled?: boolean;
   backendMode?: boolean;
+  weather?: WeatherInfo | null;
 }
 
 export type AppStep = 'start' | 'chat' | 'places' | 'itinerary';

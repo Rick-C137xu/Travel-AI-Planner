@@ -18,6 +18,9 @@ const itinerarySource = computed(() => {
   if (label === 'AI 生成') return 'V4.2 AI 行程文案（无地图校验）';
   return 'V4.2 后端 Mock 行程';
 });
+const weather = computed(() =>
+  state.weather && state.weather.status === 'ok' ? state.weather : null
+);
 const aiFallbackNotice = computed(() =>
   state.backendConnected && (state.itinerarySourceLabel || state.dataSourceLabel) === '高德地图 + 后端模板'
     ? 'AI 行程生成失败，已使用后端模板，地点仍来自高德 POI。'
@@ -65,6 +68,14 @@ async function regenerate() {
       </div>
     </div>
     <p class="source-note">行程来源：{{ itinerarySource }}</p>
+    <div v-if="weather" class="weather-card">
+      <span class="weather-title">天气参考</span>
+      <span>{{ weather.city }} · {{ weather.weather || '—' }} · {{ weather.temperature || '—' }}℃</span>
+      <span v-if="weather.humidity">湿度 {{ weather.humidity }}%</span>
+      <span v-if="weather.winddirection || weather.windpower">{{ weather.winddirection }}风 {{ weather.windpower }}级</span>
+      <span v-if="weather.reporttime" class="weather-time">更新于 {{ weather.reporttime }}</span>
+    </div>
+    <p v-else-if="state.backendConnected && state.amapEnabled" class="source-note weather-empty">暂无天气参考</p>
     <p v-if="aiFallbackNotice" class="warning-banner">{{ aiFallbackNotice }}</p>
     <p v-if="state.itineraryWarning && state.itineraryWarning !== aiFallbackNotice" class="warning-banner">
       {{ state.itineraryWarning }}

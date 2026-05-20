@@ -55,7 +55,7 @@ function normalizeBackendResponse<T>(response: ApiEnvelope<T>): ApiEnvelope<T> {
     else if (amapEnabled) dataSourceLabel = '高德地图';
     else if (aiEnabled) dataSourceLabel = 'AI 生成';
     else if (isBackendMock) dataSourceLabel = '后端 Mock';
-    else dataSourceLabel = 'V4.1 后端';
+    else dataSourceLabel = 'V4.2 后端';
   }
 
   if (isBackendMock && Array.isArray(response.data)) {
@@ -72,7 +72,7 @@ function normalizeBackendResponse<T>(response: ApiEnvelope<T>): ApiEnvelope<T> {
 
 async function withFallback<T>(request: () => Promise<ApiEnvelope<T>>, fallback: () => T): Promise<ApiEnvelope<T>> {
   if (useMock) {
-    return mockEnvelope(fallback(), '当前为 V2.1 / 前端 Mock 演示数据，未请求后端。');
+    return mockEnvelope(fallback(), '当前为 V4.2 / 前端 Mock 演示数据，未请求后端。');
   }
   try {
     return normalizeBackendResponse(await request());

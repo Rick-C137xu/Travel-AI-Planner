@@ -17,26 +17,29 @@ const stepText: Record<AppStep, string> = {
 };
 
 const versionLabel = computed(() => {
-  if (isFrontendMockMode) return 'Travel AI Planner · V4.2 Frontend Mock';
+  if (isFrontendMockMode) return 'Travel AI Planner · V4.3 Frontend Mock';
   const activeLabel =
     state.step === 'itinerary'
       ? state.itinerarySourceLabel || state.dataSourceLabel
       : state.placeSourceLabel || state.dataSourceLabel;
   if (!state.backendConnected) {
     if (activeLabel === '前端 Mock') return 'Travel AI Planner · Backend Failed → Frontend Mock';
-    return 'Travel AI Planner · V4.2';
+    return 'Travel AI Planner · V4.3';
   }
-  // V4.2：按当前页面内容选择候选地点来源或行程来源，避免候选阶段 fallback 污染行程页。
+  // V4.3：行程页根据是否拿到真实天气追加 + Weather；候选页保持原标签。
+  const onItinerary = state.step === 'itinerary';
+  const hasWeather = onItinerary && !!state.weather && state.weather.status === 'ok';
+  const weatherSuffix = hasWeather ? ' + Weather' : '';
   const label = activeLabel;
-  if (label === '高德地图 + 后端模板') return 'Travel AI Planner · V4.2 AI Fallback';
-  if (label === '高德地图 + AI') return 'Travel AI Planner · V4.2 AI + Amap';
-  if (label === '高德地图') return 'Travel AI Planner · V4.2 Amap';
-  if (label === 'AI 生成') return 'Travel AI Planner · V4.2 AI';
+  if (label === '高德地图 + 后端模板') return `Travel AI Planner · V4.3 AI Fallback${weatherSuffix}`;
+  if (label === '高德地图 + AI') return `Travel AI Planner · V4.3 AI + Amap${weatherSuffix}`;
+  if (label === '高德地图') return `Travel AI Planner · V4.3 Amap${weatherSuffix}`;
+  if (label === 'AI 生成') return `Travel AI Planner · V4.3 AI${weatherSuffix}`;
   // dataSourceLabel 尚未拿到时，按后端能力推断
-  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4.2 AI + Amap';
-  if (state.amapEnabled) return 'Travel AI Planner · V4.2 Amap';
-  if (state.aiEnabled) return 'Travel AI Planner · V4.2 AI';
-  return 'Travel AI Planner · V4.2 Backend Mock';
+  if (state.aiEnabled && state.amapEnabled) return `Travel AI Planner · V4.3 AI + Amap${weatherSuffix}`;
+  if (state.amapEnabled) return `Travel AI Planner · V4.3 Amap${weatherSuffix}`;
+  if (state.aiEnabled) return `Travel AI Planner · V4.3 AI${weatherSuffix}`;
+  return 'Travel AI Planner · V4.3 Backend Mock';
 });
 </script>
 

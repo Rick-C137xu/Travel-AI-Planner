@@ -293,6 +293,19 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 
 `/api/debug/config` 用来判断当前后端能力（`aiEnabled / amapEnabled / dataMode`）；具体一次请求实际走的路径以 envelope.dataSourceLabel 为准。`/api/debug/config` 不返回任何 `*_KEY` 字段。
 
+### /api/debug/weather 调试接口（V4.3）
+
+天气服务复用已有 `AMAP_KEY`，无需新增环境变量。
+
+- `GET https://travel-ai-planner-api.onrender.com/api/debug/weather`（默认 `city=杭州`）。
+- 支持 `?city=城市名` 或 `?city=adcode`，例如 `?city=330100`。
+- 成功示例 `status="ok"`，包含 `city / weather / temperature / humidity / winddirection / windpower / reporttime / forecast`。
+- `AMAP_KEY` 未配置返回 `status="disabled"`。
+- 高德调用失败返回 `status="error"` 并附 `reason`，不抛 500。
+- 返回内容与服务端日志不会包含 `AMAP_KEY`。
+
+行程生成接口 `/api/itinerary/generate` 现在 envelope 中会带 `weather` 字段；天气获取失败或目的地为空时为 `null`，主流程（地点推荐、行程生成、缓存）不受影响。前端 Header 在行程页且 `state.weather.status==='ok'` 时显示 `V4.3 ... + Weather`。
+
 ### /api/debug/ai 调试接口（V4.1）
 
 当 `/api/debug/config` 显示 `aiEnabled=true` 但前端始终显示「AI 请求失败」时，访问 `GET https://travel-ai-planner-api.onrender.com/api/debug/ai`，后端会实际向 AI 端点发一次最小请求并返回脱敏诊断：
