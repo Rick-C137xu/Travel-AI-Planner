@@ -435,23 +435,24 @@ class PlannerService:
             }[preference.pace]
             compact_places = _compact_places_for_itinerary(ordered)
             compact_preference = _compact_preference_for_ai(preference)
+            itinerary_max_tokens = 900 if preference.days <= 3 else 1000
             result, warning = await self.ai.json_completion(
                 system_prompt=(
-                    "你是旅行行程规划助手。只输出 json，不要解释，不要 markdown。"
-                    "格式：{\"days\":[{\"day\":1,\"date\":\"\",\"title\":\"\",\"items\":["
-                    "{\"id\":\"\",\"timeLabel\":\"\",\"placeId\":\"\",\"placeName\":\"\","
-                    "\"activity\":\"\",\"estimatedDuration\":\"\",\"transportSuggestion\":\"\",\"note\":\"\"}]}]}。"
-                    "只能使用输入地点的 id/name。"
+                    "你是旅行行程规划助手。只返回严格 JSON，不要 markdown，不要解释。"
+                    "格式：{\"days\":[{\"title\":\"\",\"date\":\"\",\"items\":["
+                    "{\"time\":\"09:00-11:00\",\"placeName\":\"\",\"description\":\"短句\","
+                    "\"duration\":\"\",\"tips\":\"短句\"}]}]}。"
+                    "只能使用输入地点 name，description/tips 保持简短。"
                 ),
                 user_prompt=(
-                    "请生成简洁行程 json。\n"
+                    "生成行程 JSON。\n"
                     f"需求：{json.dumps(compact_preference, ensure_ascii=False)}\n"
                     f"密度：{density}\n"
                     f"地点（最多 {ITINERARY_AI_PLACE_LIMIT} 个，已排序）："
                     f"{json.dumps(compact_places, ensure_ascii=False)}"
                 ),
                 temperature=0.3,
-                max_tokens=1200,
+                max_tokens=itinerary_max_tokens,
             )
             days = _safe_parse_days(result)
             if days:
@@ -602,14 +603,11 @@ def _compact_places_for_itinerary(places: list[Place]) -> list[dict[str, Any]]:
             "id": place.id,
             "name": place.name,
             "type": place.type,
+            "address": place.address,
             "reason": place.reason,
-            "suitableFor": place.suitableFor,
             "estimatedTime": place.estimatedTime,
             "warning": place.warning,
         }
-        if place.lat is not None and place.lng is not None:
-            item["lat"] = place.lat
-            item["lng"] = place.lng
         compact.append(item)
     return compact
 
@@ -641,9 +639,9 @@ def _safe_parse_days(result: Any) -> list[DayPlan]:
     else:
         return []
     days: list[DayPlan] = []
-    for item in raw:
+    for day_index, item in enumerate(raw, start=1):
         try:
-            day = DayPlan.model_validate(item)
+            day = DayPlan.model_validate(_normalize_day_payload(item, day_index))
         except Exception:  # noqa: BLE001
             continue
         # 补 id 兜底，避免前端 :key 冲突
@@ -652,6 +650,35 @@ def _safe_parse_days(result: Any) -> list[DayPlan]:
                 it.id = _short_id("item")
         days.append(day)
     return days
+
+
+def _normalize_day_payload(item: Any, day_index: int) -> Any:
+    if not isinstance(item, dict):
+        return item
+    normalized = dict(item)
+    normalized.setdefault("day", day_index)
+    normalized.setdefault("title", f"Day {day_index}")
+    normalized.setdefault("date", "")
+    normalized_items: list[Any] = []
+    for item_index, raw_item in enumerate(normalized.get("items") or [], start=1):
+        if not isinstance(raw_item, dict):
+            normalized_items.append(raw_item)
+            continue
+        place_name = str(raw_item.get("placeName") or raw_item.get("name") or "")
+        normalized_items.append(
+            {
+                "id": str(raw_item.get("id") or _short_id("item")),
+                "timeLabel": str(raw_item.get("timeLabel") or raw_item.get("time") or ""),
+                "placeId": str(raw_item.get("placeId") or place_name or f"place-{day_index}-{item_index}"),
+                "placeName": place_name,
+                "activity": str(raw_item.get("activity") or raw_item.get("description") or ""),
+                "estimatedDuration": str(raw_item.get("estimatedDuration") or raw_item.get("duration") or ""),
+                "transportSuggestion": str(raw_item.get("transportSuggestion") or ""),
+                "note": str(raw_item.get("note") or raw_item.get("tips") or ""),
+            }
+        )
+    normalized["items"] = normalized_items
+    return normalized
 
 
 def _sort_places_by_geo(places: list[Place]) -> list[Place]:

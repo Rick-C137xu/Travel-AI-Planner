@@ -1,5 +1,21 @@
 # V4.1 部署指南
 
+## V4.1.2 AI 稳定性与省 token hotfix
+
+本次修改只影响 Render 后端代码；修改后需要重新部署 Render 后端。Vercel 前端环境变量、`AI_MODEL`、DeepSeek Key 与高德 Key 不需要修改。
+
+`/api/debug/ai` 行为已调整：
+- 默认访问 `https://travel-ai-planner-api.onrender.com/api/debug/ai` 只返回非敏感配置状态，不发起真实 AI 请求，不消耗 DeepSeek token。
+- 需要真实连通性探测时，访问 `https://travel-ai-planner-api.onrender.com/api/debug/ai?probe=1`。
+- probe 请求已极小化，`maxTokens=32`，只要求返回 `{"ok": true}`。
+- debug 接口不会返回任何 API Key；`rawPreview` 仅保留短预览并脱敏。
+
+行程生成稳定性调整：
+- `/api/itinerary/generate` 继续以高德 POI 作为地点来源。
+- 发送给 DeepSeek 的地点字段已精简为 `id/name/type/address/reason/estimatedTime/warning`，最多 8 个已选地点。
+- AI 返回 Markdown fence、JSON 前后解释文字、JSON object 或 array 时，后端会尽量提取并解析。
+- AI 仍失败时保留原有后端模板 fallback，不影响主流程。
+
 ## V4.1.1 AI 行程生成 timeout/token hotfix
 
 本次修复只影响 Render 后端代码。前端 Vercel 环境变量、高德 Key、DeepSeek Key 和 `AI_MODEL` 不需要改动。

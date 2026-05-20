@@ -24,7 +24,7 @@ logger = logging.getLogger("travel_ai_planner.ai")
 DEFAULT_TIMEOUT_SECONDS = 45.0
 DEFAULT_MAX_TOKENS = 1600
 DEBUG_TIMEOUT_SECONDS = 20.0
-DEBUG_MAX_TOKENS = 64
+DEBUG_MAX_TOKENS = 32
 
 # 用于脱敏的正则：Authorization Bearer、sk-xxx 风格 Key 等
 _BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+", re.IGNORECASE)
@@ -64,6 +64,19 @@ class AIClient:
         base = self._settings.ai_base_url.rstrip("/")
         return f"{base}/chat/completions"
 
+    def debug_status(self) -> dict[str, Any]:
+        return {
+            "aiConfigured": self.enabled,
+            "aiProvider": self._settings.ai_provider,
+            "aiBaseUrl": self._settings.ai_base_url if self.enabled else "",
+            "aiModel": self._settings.ai_model if self.enabled else "",
+            "requestUrl": self.request_url if self.enabled else "",
+            "timeoutSeconds": DEBUG_TIMEOUT_SECONDS,
+            "maxTokens": DEBUG_MAX_TOKENS,
+            "probeEnabled": False,
+            "message": "默认不发起真实 AI 请求，如需测试请使用 ?probe=1",
+        }
+
     async def json_completion(
         self,
         system_prompt: str,
@@ -90,7 +103,7 @@ class AIClient:
                 return parse_json_content(content), None
             except (ValueError, json.JSONDecodeError) as exc:
                 logger.warning(
-                    "AI JSON parse failed: errorType=parse_error, model=%s, preview=%s",
+                    "AI JSON parse failed: errorType=json_parse_error, model=%s, preview=%s",
                     self._settings.ai_model,
                     _sanitize(content, limit=500),
                 )
@@ -117,6 +130,7 @@ class AIClient:
             "parsedJsonOk": False,
             "timeoutSeconds": timeout,
             "maxTokens": DEBUG_MAX_TOKENS,
+            "probeEnabled": True,
         }
         if not self.enabled:
             info["errorType"] = "not_configured"
@@ -137,7 +151,7 @@ class AIClient:
         info["statusCode"] = outcome.get("statusCode")
         info["errorType"] = outcome.get("errorType")
         info["errorMessage"] = outcome.get("warning")
-        info["rawPreview"] = outcome.get("rawPreview", "")
+        info["rawPreview"] = _sanitize(outcome.get("rawPreview", ""), limit=300)
 
         if outcome["ok"]:
             content = outcome["content"]
@@ -151,7 +165,7 @@ class AIClient:
             except (ValueError, json.JSONDecodeError) as exc:
                 info["ok"] = False
                 info["parsedJsonOk"] = False
-                info["errorType"] = "parse_error"
+                info["errorType"] = "json_parse_error"
                 info["errorMessage"] = f"AI 返回格式异常：{exc}"
         return info
 
@@ -268,7 +282,7 @@ class AIClient:
                 self._settings.ai_model,
                 _sanitize(str(exc), limit=200),
             )
-            result["errorType"] = "parse_error"
+            result["errorType"] = "json_parse_error"
             result["warning"] = "AI 返回格式异常，已使用后端模板"
             return result
         except Exception as exc:  # noqa: BLE001
@@ -284,21 +298,55 @@ class AIClient:
 
 
 def parse_json_content(content: str) -> Any:
+    text = _strip_markdown_fence(content).strip()
     try:
-        return json.loads(content)
+        return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    fenced = re.search(r"```(?:json)?\s*(.*?)```", content, re.S)
-    if fenced:
-        try:
-            return json.loads(fenced.group(1))
-        except json.JSONDecodeError:
-            pass
+    extracted = _extract_first_json_value(text)
+    if extracted:
+        return json.loads(extracted)
+    raise ValueError("AI 返回内容中未找到完整 JSON object 或 array")
 
-    candidates: list[int] = [idx for idx in (content.find("{"), content.find("[")) if idx >= 0]
-    start = min(candidates) if candidates else -1
-    end = max(content.rfind("}"), content.rfind("]"))
-    if start >= 0 and end > start:
-        return json.loads(content[start : end + 1])
-    raise ValueError("AI 返回内容不是合法 JSON")
+
+def _strip_markdown_fence(content: str) -> str:
+    text = content.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, re.S | re.IGNORECASE)
+    if fenced:
+        return fenced.group(1).strip()
+    return re.sub(r"```(?:json)?|```", "", text, flags=re.IGNORECASE).strip()
+
+
+def _extract_first_json_value(text: str) -> str | None:
+    starts = [(idx, char) for idx, char in ((text.find("{"), "{"), (text.find("["), "[")) if idx >= 0]
+    if not starts:
+        return None
+    start, _ = min(starts, key=lambda item: item[0])
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    for idx in range(start, len(text)):
+        char = text[idx]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if not stack:
+                return None
+            expected = "}" if stack[-1] == "{" else "]"
+            if char != expected:
+                return None
+            stack.pop()
+            if not stack:
+                return text[start : idx + 1]
+    return None

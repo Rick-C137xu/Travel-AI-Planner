@@ -1,5 +1,37 @@
 # Change Record
 
+## 2026-05-20 V4.1.2 AI stability/token hotfix
+
+### 背景
+
+DeepSeek 与高德均已在线启用，`/api/debug/ai` 可探测成功，但默认访问 debug 接口会消耗 token；业务接口偶尔因 AI 多输出解释文字、Markdown fence 或 JSON 结构不完全匹配而降级为后端模板。本次只做稳定性与省 token hotfix，不重构、不新增平台、不修改 Key 或模型名。
+
+### 修改
+
+- `apps/api/app/main.py`
+  - `/api/debug/ai` 默认只返回当前 AI 配置状态，不再发起真实 DeepSeek 请求。
+  - 只有访问 `/api/debug/ai?probe=1` 时才执行一次真实极小探测。
+- `apps/api/app/services/ai_client.py`
+  - debug probe 的 `maxTokens` 从 64 降为 32。
+  - 新增 `debug_status()`，返回 `aiConfigured / aiProvider / aiBaseUrl / aiModel / requestUrl / timeoutSeconds / maxTokens / probeEnabled=false` 等非敏感字段。
+  - 增强 JSON 解析：先处理 Markdown fence，再 `json.loads`，失败后提取文本中的第一个完整 JSON object 或 array 再解析。
+  - JSON 解析失败时使用 `json_parse_error`，`rawPreview` 继续脱敏并截断，不返回 Key 或完整原始响应。
+- `apps/api/app/services/planner_service.py`
+  - 行程生成 prompt 进一步精简为短 JSON schema：`days/title/date/items/time/placeName/description/duration/tips`。
+  - 行程生成只传最多 8 个已选地点的必要字段：`id/name/type/address/reason/estimatedTime/warning`。
+  - 3 天内行程 `max_tokens=900`，更长行程 `max_tokens=1000`，`temperature=0.3`。
+  - 兼容 AI 返回的新短 schema，并映射回前端既有 `DayPlan / ItineraryItem` 结构；保留失败时后端模板 fallback。
+- `docs/CHANGE_RECORD.md`
+  - 新增本次 V4.1.2 记录。
+- `docs/DEPLOYMENT.md`
+  - 说明 `/api/debug/ai` 默认不消耗 token，真实探测改为 `/api/debug/ai?probe=1`，以及 Render 后端需重新部署。
+
+### 未修改
+
+- 未修改前端 UI 或业务流程。
+- 未修改 `AI_MODEL`、`AI_API_KEY`、`AMAP_KEY` 或高德地图逻辑。
+- 未新增第三方服务，未删除现有 fallback。
+
 ## 2026-05-20 V4.1.1 AI timeout/token hotfix
 
 ### 背景

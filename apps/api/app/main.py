@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import load_settings
@@ -106,12 +106,14 @@ def debug_config() -> dict[str, Any]:
 
 
 @app.get("/api/debug/ai")
-async def debug_ai() -> dict[str, Any]:
-    """V4.1 调试接口：真实请求一次 AI，返回脱敏诊断信息。
+async def debug_ai(probe: bool = Query(False)) -> dict[str, Any]:
+    """V4.1 调试接口：默认只返回配置状态，probe=1 时真实请求一次 AI。
 
     用于排查 DeepSeek / OpenAI 兼容端点接入失败的真实原因。
     严格不返回 API Key；rawPreview 已脱敏并截断（成功 ≤300 / 失败 ≤500 字符）。
     """
+    if not probe:
+        return ai_client.debug_status()
     return await ai_client.debug_probe()
 
 
