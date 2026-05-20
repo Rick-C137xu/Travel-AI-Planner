@@ -105,6 +105,16 @@ def debug_config() -> dict[str, Any]:
     }
 
 
+@app.get("/api/debug/ai")
+async def debug_ai() -> dict[str, Any]:
+    """V4.1 调试接口：真实请求一次 AI，返回脱敏诊断信息。
+
+    用于排查 DeepSeek / OpenAI 兼容端点接入失败的真实原因。
+    严格不返回 API Key；rawPreview 已脱敏并截断（成功 ≤300 / 失败 ≤500 字符）。
+    """
+    return await ai_client.debug_probe()
+
+
 @app.post("/api/chat/next-question")
 def next_question(payload: NextQuestionRequest) -> ApiEnvelope:
     questions = [

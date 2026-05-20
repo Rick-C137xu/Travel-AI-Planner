@@ -1,5 +1,41 @@
 # Change Record
 
+## 2026-05-20 V4.1 AI 调试增强（DeepSeek 排查）
+
+### 背景
+
+V4.1 接入 DeepSeek 后，Render 后端 `/api/health` 显示 `dataMode=高德地图 + AI`，`aiEnabled=true`，但前端候选地点与行程页仍提示「AI 请求失败，已降级为后端模板」。Render 业务接口日志只看到 200，看不到 DeepSeek 的真实错误。本轮只做**后端排查增强**：未改前端业务逻辑，未改高德相关代码，未新增真实 Key。
+
+### 修改
+
+- `apps/api/app/services/ai_client.py`
+  - 重构为「HTTP 调用层 + 业务封装层」两段：底层 `_raw_chat_completion` 统一捕获并分类异常为 `http_error / request_error / timeout / parse_error / empty_content / unknown`，每种都通过 `logging` 写一条结构化日志：包含 `status_code / model / url / 脱敏 preview`；**不会**打印 `AI_API_KEY` 或 `Authorization` 原文，已用 `_sanitize` 把 `Bearer xxx` 和 `sk-xxx` 替换为 `Bearer ***` / `sk-***`。
+  - 新增 `debug_probe()`：发送一个极简 JSON probe（system + user 都包含 `json` 字样、`response_format={"type":"json_object"}`、`max_tokens=64`），返回结构化诊断给 `/api/debug/ai`。
+  - 新增 `request_url` 属性，会把 `AI_BASE_URL` 末尾多余的 `/` 去掉后再拼接 `/chat/completions`，避免出现 `https://api.deepseek.com//chat/completions` 这类隐形错误。
+- `apps/api/app/main.py`
+  - 新增 `GET /api/debug/ai` 路由，转发到 `ai_client.debug_probe()`。
+  - 返回 `aiConfigured / aiProvider / aiBaseUrl / aiModel / requestUrl / ok / statusCode / errorType / errorMessage / rawPreview / parsedJsonOk`，**不返回任何 Key**。
+- `docs/CHANGE_RECORD.md`：新增本节，说明排查接口的目的与使用方式。
+- `docs/DEPLOYMENT.md`：补充 `/api/debug/ai` 的使用说明（见相应章节）。
+
+### 是否修复了 AI 请求失败
+
+代码侧最常见的格式问题已经过排查并确认 OK：
+
+- 请求 URL：`https://api.deepseek.com/chat/completions`（DeepSeek 文档允许，等价于 `/v1/chat/completions`）。
+- Header：`Authorization: Bearer ${AI_API_KEY}`、`Content-Type: application/json`。
+- Body：`model / messages(system+user) / temperature / response_format={"type":"json_object"}`，prompt 中包含 `json` 字样。
+
+仍未修复的最大可疑点是 **`AI_MODEL=deepseek-v4-flash` 不是 DeepSeek 公开模型名**。DeepSeek OpenAI-compatible 端点公开支持的模型仅为 `deepseek-chat`、`deepseek-reasoner`。若 `/api/debug/ai` 返回 `statusCode=400/422` 且 `rawPreview` 中包含 `model_not_found` / `invalid model` 之类字样，请把 Render 环境变量 `AI_MODEL` 改为 `deepseek-chat` 后重新部署。代码侧未硬编码任何模型别名（避免悄悄替换用户配置）。
+
+### 安全约束
+
+- 任何分支都不打印 `AI_API_KEY` 或完整 `Authorization` header。
+- `rawPreview` / 日志 preview 经 `_sanitize` 双重正则脱敏，并强制截断（成功 ≤300 字符，失败 ≤500 字符）。
+- 不打印完整用户输入：仅在业务路径走 `planner_service` 时使用 prompt；调试 probe 使用固定无害文本，不携带任何用户隐私输入。
+- 没有新增任何环境变量；沿用 `AI_PROVIDER / AI_API_KEY / AI_BASE_URL / AI_MODEL / AMAP_KEY / ALLOWED_ORIGINS`。
+- 没有修改前端业务逻辑、没有改高德相关代码、没有改 CORS。
+
 ## 2026-05-20 V4.1 AI 接入与降级语义对齐
 
 ### 目标

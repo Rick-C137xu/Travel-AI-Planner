@@ -232,6 +232,35 @@ VITE_API_BASE_URL=https://your-api-service.onrender.com
 
 `/api/debug/config` 用来判断当前后端能力（`aiEnabled / amapEnabled / dataMode`）；具体一次请求实际走的路径以 envelope.dataSourceLabel 为准。`/api/debug/config` 不返回任何 `*_KEY` 字段。
 
+### /api/debug/ai 调试接口（V4.1）
+
+当 `/api/debug/config` 显示 `aiEnabled=true` 但前端始终显示「AI 请求失败」时，访问 `GET https://travel-ai-planner-api.onrender.com/api/debug/ai`，后端会实际向 AI 端点发一次最小请求并返回脱敏诊断：
+
+```json
+{
+  "aiConfigured": true,
+  "aiProvider": "openai-compatible",
+  "aiBaseUrl": "https://api.deepseek.com",
+  "aiModel": "deepseek-chat",
+  "requestUrl": "https://api.deepseek.com/chat/completions",
+  "ok": true,
+  "statusCode": 200,
+  "errorType": null,
+  "errorMessage": null,
+  "rawPreview": "{\"ok\": true}",
+  "parsedJsonOk": true
+}
+```
+
+- 该接口不返回任何 `*_KEY`；`rawPreview` 与日志均经过脱敏（`Bearer ***` / `sk-***`）。
+- 失败时按 `errorType` 排查：
+  - **`http_error` + `statusCode=401`**：`AI_API_KEY` 无效 / 过期 / 没绑账户额度。检查 Render 后台 Key 是否完整、是否选择了正确的 provider。
+  - **`http_error` + `statusCode=402`**：DeepSeek 账户余额不足。前往 DeepSeek 控制台充值后即可，无需改代码。
+  - **`http_error` + `statusCode=422 / 400`**：通常是模型名或 payload 字段不合法。看 `rawPreview` 是否包含 `model_not_found` / `invalid model`。例如 `deepseek-v4-flash` 不存在，请把 Render 的 `AI_MODEL` 改为 `deepseek-chat` 或 `deepseek-reasoner` 后 Manual Deploy。
+  - **`empty_content`**：HTTP 200 但 `choices[0].message.content` 为空。常见原因是 `max_tokens` 太小、`temperature` 异常，或服务端把 `response_format=json_object` 与不合规 prompt 一起拒绝；可先把 `AI_MODEL` 换 `deepseek-chat` 重试。
+  - **`request_error` / `timeout`**：网络问题，Render 与 DeepSeek 网络不通或区域被限。可换一个 OpenAI 兼容端点（如 Moonshot / 通义千问 OpenAI 兼容 URL）做对比。
+- 该接口可以反复调用以做回归验证；建议修复后访问一次确认 `ok: true, parsedJsonOk: true`，再回到前端验证 Header 是否从 `V4.1 AI Fallback` 变为 `V4.1 AI + Amap`。
+
 ## 本地前后端联调
 
 1. 启动后端：
