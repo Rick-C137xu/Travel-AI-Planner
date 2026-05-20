@@ -6,8 +6,8 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 const { state } = usePlannerStore();
 const recommendationText = computed(() =>
   isFrontendMockMode
-    ? '当前为 V4.2 / 前端 Mock 模式，使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。'
-    : '当前为 V4.2 后端模式，会请求后端推荐与行程接口；未配置 AI_API_KEY 时返回后端 Mock 数据。'
+    ? '当前为 V4.3 / 前端 Mock 模式，使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。'
+    : '当前为 V4.3 后端模式，会请求后端推荐与行程接口；未配置 AI_API_KEY 时返回后端 Mock 数据。'
 );
 
 function start() {

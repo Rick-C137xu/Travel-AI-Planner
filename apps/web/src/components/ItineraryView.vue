@@ -7,16 +7,16 @@ const { state, updateRuntimeStatus, saveCurrentItineraryToCache, clearCurrentIti
 const loading = ref(false);
 const selectedPlaces = computed(() => state.places.filter((place) => place.userStatus === 'want'));
 const itinerarySource = computed(() => {
-  if (isFrontendMockMode) return 'V4.2 前端 Mock 行程模板';
+  if (isFrontendMockMode) return 'V4.3 前端 Mock 行程模板';
   const label = state.itinerarySourceLabel || state.dataSourceLabel;
   if (!state.backendConnected) {
-    return label === '前端 Mock' ? '后端请求失败 → 前端 Mock' : 'V4.2 后端';
+    return label === '前端 Mock' ? '后端请求失败 → 前端 Mock' : 'V4.3 后端';
   }
-  if (label === '高德地图 + AI') return 'V4.2 高德地图 + AI（按经纬度排序后由 AI 生成行程文案）';
+  if (label === '高德地图 + AI') return 'V4.3 高德地图 + AI（按经纬度排序后由 AI 生成行程文案）';
   if (label === '高德地图 + 后端模板') return 'AI 行程生成失败，已使用后端模板，地点仍来自高德 POI。';
-  if (label === '高德地图') return 'V4.2 高德排序 + 后端模板行程';
-  if (label === 'AI 生成') return 'V4.2 AI 行程文案（无地图校验）';
-  return 'V4.2 后端 Mock 行程';
+  if (label === '高德地图') return 'V4.3 高德排序 + 后端模板行程';
+  if (label === 'AI 生成') return 'V4.3 AI 行程文案（无地图校验）';
+  return 'V4.3 后端 Mock 行程';
 });
 const weather = computed(() =>
   state.weather && state.weather.status === 'ok' ? state.weather : null

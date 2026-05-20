@@ -2,7 +2,9 @@ import { reactive, watch } from 'vue';
 import type { ApiEnvelope, AppStep, DayPlan, Place, TravelPreference, WeatherInfo } from '@/types';
 
 const STORAGE_KEY = 'travel-ai-planner:v1';
-const ITINERARY_CACHE_PREFIX = 'travel-ai-planner:itinerary:v1:';
+// V4.3.1：行程缓存 key 升级到 v4.3，避免读取到 V4.2 时期残留的 sourceLabel/文案。
+const ITINERARY_CACHE_PREFIX = 'travel-ai-planner:itinerary:v4.3:';
+const LEGACY_ITINERARY_CACHE_PREFIXES = ['travel-ai-planner:itinerary:v1:'];
 
 type RuntimeScope = 'places' | 'itinerary' | 'general';
 
@@ -101,10 +103,26 @@ export function buildItineraryCacheKey(preference: TravelPreference, places: Pla
 
 function readItineraryCache(cacheKey: string): ItineraryCacheEntry | null {
   try {
+    // V4.3.1：清理旧版本前缀的行程缓存。
+    for (const legacy of LEGACY_ITINERARY_CACHE_PREFIXES) {
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(legacy)) localStorage.removeItem(k);
+        }
+      } catch {
+        // ignore
+      }
+    }
     const raw = localStorage.getItem(cacheKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<ItineraryCacheEntry>;
     if (!Array.isArray(parsed.itinerary) || !parsed.itinerary.length) return null;
+    // V4.3.1：若缓存里的 sourceLabel 仍含 V4.2 字样，视为脏数据丢弃。
+    if (typeof parsed.sourceLabel === 'string' && /v4\.2/i.test(parsed.sourceLabel)) {
+      try { localStorage.removeItem(cacheKey); } catch { /* ignore */ }
+      return null;
+    }
     return {
       itinerary: parsed.itinerary,
       sourceLabel: parsed.sourceLabel || '',
@@ -208,7 +226,7 @@ export function usePlannerStore() {
   }
 
   function updateRuntimeStatus<T>(response: ApiEnvelope<T>, scope: RuntimeScope = 'general') {
-    const label = response.dataSourceLabel || (response.backendMode ? 'V4.2 后端' : '前端 Mock');
+    const label = response.dataSourceLabel || (response.backendMode ? 'V4.3 后端' : '前端 Mock');
     state.backendConnected = response.backendMode === true;
     state.aiEnabled = typeof response.aiEnabled === 'boolean' ? response.aiEnabled : state.aiEnabled;
     state.amapEnabled = typeof response.amapEnabled === 'boolean' ? response.amapEnabled : state.amapEnabled;

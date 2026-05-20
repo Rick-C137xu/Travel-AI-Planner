@@ -1,5 +1,26 @@
 # Change Record
 
+## 2026-05-20 V4.3.1 文案与缓存版本统一修复
+
+### 问题
+
+- Header 已显示 V4.3，但行程页 / 候选页 / 粘贴攻略 / StartPage / store 默认 fallback 文案仍硬编码 `V4.2`。
+- 行程缓存前缀仍是 `travel-ai-planner:itinerary:v1:`，部署 V4.3 后用户旧缓存里的 `sourceLabel` 仍是 V4.2 文案，会被回填到行程页。
+
+### 修改
+
+- `apps/web/src/components/StartPage.vue`、`apps/web/src/components/PlaceRecommendation.vue`、`apps/web/src/components/PasteGuidePanel.vue`、`apps/web/src/components/ItineraryView.vue`：所有用户可见 `V4.2` 文案统一替换为 `V4.3`，未触碰 AI / 高德 / 天气逻辑。
+- `apps/web/src/services/api.ts`：默认 `dataSourceLabel` fallback 与前端 Mock 提示中的 `V4.2` → `V4.3`。
+- `apps/web/src/store/usePlannerStore.ts`：
+  - `ITINERARY_CACHE_PREFIX` 升级为 `travel-ai-planner:itinerary:v4.3:`，并保留 `LEGACY_ITINERARY_CACHE_PREFIXES = ['travel-ai-planner:itinerary:v1:']`，读缓存时自动清理旧前缀条目。
+  - `readItineraryCache` 检测到 `sourceLabel` 仍含 `V4.2` 字样时直接丢弃该缓存。
+  - `updateRuntimeStatus` 默认 fallback `V4.2 后端` → `V4.3 后端`。
+
+### 不变
+
+- 未修改 `AI_API_KEY / AI_MODEL / AMAP_KEY / VITE_AMAP_KEY / securityJsCode`；未改 Render / Vercel 配置；未改后端 AI / 高德 / 天气逻辑。
+- 未改 `STORAGE_KEY`，不会清掉用户偏好/草稿，只清行程缓存这一层。
+
 ## 2026-05-20 V4.3.1 候选地点 AI 文案 hotfix（candidate AI copy fallback / status）
 
 ### 问题
