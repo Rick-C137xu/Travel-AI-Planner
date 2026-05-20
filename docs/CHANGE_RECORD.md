@@ -1,5 +1,47 @@
 # Change Record
 
+## 2026-05-20 V4.2 稳定体验版
+
+### 背景
+
+V4.1 已经接通 Render 后端、DeepSeek OpenAI-compatible API 与高德 Web 服务，候选地点和行程生成基本可用。本轮重点解决前端把候选地点阶段的 AI fallback 状态误用于行程页的问题，并通过本地行程缓存减少重复请求 `/api/itinerary/generate` 造成的 DeepSeek token 消耗。
+
+### 修改
+
+- `apps/web/src/store/usePlannerStore.ts`
+  - 新增 `placeSourceLabel / itinerarySourceLabel` 与 `placeWarning / itineraryWarning`，将候选地点来源和行程来源拆开保存。
+  - 新增行程 localStorage 缓存，key 根据 `destination / startDate / days / 已选地点 id 和 name / interests / budgetLevel / transportPreference / pace / dislikes / hotelArea` 生成。
+  - 新增读取、写入、清理当前行程缓存的方法；清空当前计划时同步清理对应缓存。
+- `apps/web/src/components/AppHeader.vue`
+  - Header 根据当前页面实际内容选择候选地点来源或行程来源。
+  - 行程页 AI 成功时显示 `Travel AI Planner · V4.2 AI + Amap`；候选地点仅高德时显示 `Travel AI Planner · V4.2 Amap`；最终行程模板降级时才显示 `Travel AI Planner · V4.2 AI Fallback`。
+- `apps/web/src/components/PlaceRecommendation.vue`
+  - 候选地点页使用候选地点来源文案，不再污染行程来源。
+  - AI 补充文案失败但高德 POI 成功时，显示“候选地点来自高德 POI，AI 补充文案失败，已使用规则文案。”
+  - 点击“生成行程”时先读取缓存；命中缓存则直接进入行程页，不请求 `/api/itinerary/generate`。
+  - 首次生成成功后写入缓存；重新推荐地点时清空当前行程展示状态。
+- `apps/web/src/components/ItineraryView.vue`
+  - 行程页使用独立的行程来源文案。
+  - AI 行程成功时显示“V4.2 高德地图 + AI（按经纬度排序后由 AI 生成行程文案）”。
+  - “重新生成行程”会清理当前缓存、重新请求后端并覆盖缓存。
+- `apps/web/src/components/PasteGuidePanel.vue` 与 `apps/web/src/components/PlaceCard.vue`
+  - 读取候选地点来源标签，避免被行程来源影响。
+- `docs/CHANGE_RECORD.md`
+  - 新增本次 V4.2 记录。
+- `docs/DEPLOYMENT.md`
+  - 补充 V4.2 部署后验证方式，包含 `/api/health`、`/api/debug/ai`、`/api/debug/ai?probe=1`、候选地点页、行程页和 Network 请求次数检查。
+
+### 追加修改
+
+- `apps/web/src/components/AppHeader.vue`、`PlaceRecommendation.vue`、`ItineraryView.vue`、`PasteGuidePanel.vue`、`StartPage.vue`、`apps/web/src/services/api.ts`、`apps/web/src/store/usePlannerStore.ts`
+  - 将页面可见版本号统一为 V4.2，包含前端 Mock、后端模式、高德模式、AI 模式、AI Fallback 和后端 Mock 等状态。
+
+### 未修改
+
+- 未修改后端业务代码、AI 调用参数、高德 POI 搜索逻辑或 envelope 结构。
+- 未修改 `AI_API_KEY`、`AMAP_KEY`、高德 JS API Key、securityJsCode、Render / Vercel 私密环境变量。
+- 未新增数据库、登录系统或新的第三方服务。
+
 ## 2026-05-20 V4.1.2 AI stability/token hotfix
 
 ### 追加修复：行程 JSON 输出与解析诊断

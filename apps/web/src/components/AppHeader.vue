@@ -17,22 +17,26 @@ const stepText: Record<AppStep, string> = {
 };
 
 const versionLabel = computed(() => {
-  if (isFrontendMockMode) return 'Travel AI Planner · V2.1 Frontend Mock';
+  if (isFrontendMockMode) return 'Travel AI Planner · V4.2 Frontend Mock';
+  const activeLabel =
+    state.step === 'itinerary'
+      ? state.itinerarySourceLabel || state.dataSourceLabel
+      : state.placeSourceLabel || state.dataSourceLabel;
   if (!state.backendConnected) {
-    if (state.dataSourceLabel === '前端 Mock') return 'Travel AI Planner · Backend Failed → Frontend Mock';
-    return 'Travel AI Planner · V4.1';
+    if (activeLabel === '前端 Mock') return 'Travel AI Planner · Backend Failed → Frontend Mock';
+    return 'Travel AI Planner · V4.2';
   }
-  // V4.1：以本次请求的 dataSourceLabel 为权威，区分 AI 成功/AI 失败降级。
-  const label = state.dataSourceLabel;
-  if (label === '高德地图 + 后端模板') return 'Travel AI Planner · V4.1 AI Fallback';
-  if (label === '高德地图 + AI') return 'Travel AI Planner · V4.1 AI + Amap';
-  if (label === '高德地图') return 'Travel AI Planner · V4 Amap';
-  if (label === 'AI 生成') return 'Travel AI Planner · V4.1 AI';
+  // V4.2：按当前页面内容选择候选地点来源或行程来源，避免候选阶段 fallback 污染行程页。
+  const label = activeLabel;
+  if (label === '高德地图 + 后端模板') return 'Travel AI Planner · V4.2 AI Fallback';
+  if (label === '高德地图 + AI') return 'Travel AI Planner · V4.2 AI + Amap';
+  if (label === '高德地图') return 'Travel AI Planner · V4.2 Amap';
+  if (label === 'AI 生成') return 'Travel AI Planner · V4.2 AI';
   // dataSourceLabel 尚未拿到时，按后端能力推断
-  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4.1 AI + Amap';
-  if (state.amapEnabled) return 'Travel AI Planner · V4 Amap';
-  if (state.aiEnabled) return 'Travel AI Planner · V4.1 AI';
-  return 'Travel AI Planner · V3 Backend Mock';
+  if (state.aiEnabled && state.amapEnabled) return 'Travel AI Planner · V4.2 AI + Amap';
+  if (state.amapEnabled) return 'Travel AI Planner · V4.2 Amap';
+  if (state.aiEnabled) return 'Travel AI Planner · V4.2 AI';
+  return 'Travel AI Planner · V4.2 Backend Mock';
 });
 </script>
 

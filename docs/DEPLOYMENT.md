@@ -1,4 +1,27 @@
-# V4.1 部署指南
+# V4.2 部署指南
+
+## V4.2 稳定体验版前端验证
+
+本次修改主要影响 Vercel 前端代码，不修改任何 Key 或环境变量。部署后需要重新部署 Vercel 前端；Render 后端如果仍是 V4.1.2，可不因本轮前端改动单独重部署。
+
+后端健康与 AI 调试验证：
+1. 打开 `https://travel-ai-planner-api.onrender.com/api/health`，确认 `aiEnabled=true`、`amapEnabled=true`，并查看 `dataMode` 是否为“高德地图 + AI”。
+2. 打开 `https://travel-ai-planner-api.onrender.com/api/debug/ai`，确认只返回非敏感配置状态，`probeEnabled=false`，不会请求真实 DeepSeek。
+3. 需要真实连通性探测时，再打开 `https://travel-ai-planner-api.onrender.com/api/debug/ai?probe=1`，确认 `ok=true`、`parsedJsonOk=true`。这个地址会发起一次极小 AI 请求，不要反复刷新。
+
+前端页面验证：
+1. 在 Vercel 前端完整走问答流程，进入候选地点页。
+2. 如果候选地点 `dataSourceLabel="高德地图 + 后端模板"`，页面应显示“候选地点来自高德 POI，AI 补充文案失败，已使用规则文案。”，Header 应显示 `Travel AI Planner · V4.2 AI Fallback` 或候选阶段对应状态。
+3. 选择地点后点击“生成行程”。如果行程接口返回 `dataSourceLabel="高德地图 + AI"`，行程页 Header 应显示 `Travel AI Planner · V4.2 AI + Amap`，不应继续显示候选阶段的 fallback。
+4. 行程页应显示“行程来源：V4.2 高德地图 + AI（按经纬度排序后由 AI 生成行程文案）”。
+5. 刷新页面、返回候选地点页再点“生成行程”，如果偏好和已选地点未变，前端应读取 localStorage 缓存，不自动重新请求 `/api/itinerary/generate`。
+6. 只有点击行程页“重新生成行程”时，Network 中才应再次出现 `POST /api/itinerary/generate`，并在成功后覆盖缓存。
+7. 点击“清空当前计划”后，对应行程缓存会同步清理；重新选择并生成时会按新的 key 请求后端。
+
+Network 检查重点：
+- `POST /api/places/recommend`：进入候选地点页或点击“重新推荐地点”时请求。
+- `POST /api/itinerary/generate`：首次生成或点击“重新生成行程”时请求。
+- 刷新页面、切换页面回来、重复进入行程页时，不应自动重复请求 `/api/itinerary/generate`。
 
 ## V4.1.2 AI 稳定性与省 token hotfix
 

@@ -16,7 +16,7 @@ const shortReason = computed(() => {
 const sourceLabel = computed(() => {
   const raw = props.place.source;
   if (raw === 'Mock数据') {
-    if (isFrontendMockMode || state.dataSourceLabel === '前端 Mock') return '前端 Mock';
+    if (isFrontendMockMode || (state.placeSourceLabel || state.dataSourceLabel) === '前端 Mock') return '前端 Mock';
     if (state.backendConnected && state.aiEnabled === false && state.amapEnabled === false) return '后端 Mock';
   }
   return raw;
