@@ -23,6 +23,8 @@ from .ai_client import AIClient
 from .amap_client import AmapClient
 
 
+ITINERARY_AI_PLACE_LIMIT = 8
+
 PLACE_TYPE_BY_AMAP = [
     ("餐饮", "餐厅"),
     ("美食", "餐厅"),
@@ -103,10 +105,7 @@ class PlannerService:
                     label="高德地图 + 后端模板",
                     ai=True,
                     amap=True,
-                    warning=(
-                        "AI 请求失败，已降级为后端模板，地点仍来自高德 POI。"
-                        + (f" 详情：{warning}" if warning else "")
-                    ),
+                    warning=_ai_fallback_warning(warning, keep_amap_places=True),
                 )
             # AI + Amap 全失败（连 POI 都拿不到），向下降级
         if amap_on:
@@ -434,19 +433,25 @@ class PlannerService:
                 "normal": "每天 3-4 个主要地点",
                 "intense": "每天 4-6 个主要地点",
             }[preference.pace]
+            compact_places = _compact_places_for_itinerary(ordered)
+            compact_preference = _compact_preference_for_ai(preference)
             result, warning = await self.ai.json_completion(
                 system_prompt=(
-                    "你是旅行行程规划助手。只返回 JSON，格式为 {\"days\": DayPlan[]}。"
-                    "DayPlan 字段：day,date,title,items。"
-                    "ItineraryItem 字段：id,timeLabel,placeId,placeName,activity,estimatedDuration,transportSuggestion,note。"
-                    "行程不要太满，按地理与体力合理安排，placeId/placeName 必须使用输入中的真实值。"
+                    "你是旅行行程规划助手。只输出 json，不要解释，不要 markdown。"
+                    "格式：{\"days\":[{\"day\":1,\"date\":\"\",\"title\":\"\",\"items\":["
+                    "{\"id\":\"\",\"timeLabel\":\"\",\"placeId\":\"\",\"placeName\":\"\","
+                    "\"activity\":\"\",\"estimatedDuration\":\"\",\"transportSuggestion\":\"\",\"note\":\"\"}]}]}。"
+                    "只能使用输入地点的 id/name。"
                 ),
                 user_prompt=(
-                    f"旅行需求：{preference.model_dump_json()}\n"
-                    f"强度密度要求：{density}\n"
-                    f"已选地点（已按地理位置排序）："
-                    f"{json.dumps([p.model_dump() for p in ordered], ensure_ascii=False)}"
+                    "请生成简洁行程 json。\n"
+                    f"需求：{json.dumps(compact_preference, ensure_ascii=False)}\n"
+                    f"密度：{density}\n"
+                    f"地点（最多 {ITINERARY_AI_PLACE_LIMIT} 个，已排序）："
+                    f"{json.dumps(compact_places, ensure_ascii=False)}"
                 ),
+                temperature=0.3,
+                max_tokens=1200,
             )
             days = _safe_parse_days(result)
             if days:
@@ -461,10 +466,9 @@ class PlannerService:
             mock = mock_itinerary(preference, ordered)
             fallback_label = "高德地图 + 后端模板" if amap_on else "后端 Mock"
             fallback_warning = (
-                "AI 请求失败，已降级为后端模板，地点仍来自高德 POI。"
-                + (f" 详情：{warning}" if warning else "")
+                _ai_fallback_warning(warning, keep_amap_places=True)
                 if amap_on
-                else (warning or "AI 行程解析失败，已使用后端 Mock 行程。")
+                else (warning or "AI 返回格式异常，已使用后端 Mock 行程。")
             )
             return mock, _meta(
                 label=fallback_label,
@@ -497,6 +501,20 @@ def _meta(*, label: str, ai: bool, amap: bool, warning: str | None) -> dict[str,
         "backendMode": True,
         "warning": warning,
     }
+
+
+def _ai_fallback_warning(warning: str | None, *, keep_amap_places: bool) -> str:
+    if warning and "超时" in warning:
+        base = "AI 请求超时，已使用后端模板。"
+    elif warning and ("格式" in warning or "JSON" in warning or "json" in warning):
+        base = "AI 返回格式异常，已使用后端模板。"
+    else:
+        base = "AI 请求失败，已使用后端模板。"
+    if keep_amap_places:
+        base += " 地点仍来自高德 POI。"
+    if warning:
+        base += f" 详情：{warning}"
+    return base
 
 
 def _rule_keywords(preference: TravelPreference) -> list[str]:
@@ -559,6 +577,41 @@ def _poi_to_place(
         source=source,
         userStatus="backup",
     )
+
+
+def _compact_preference_for_ai(preference: TravelPreference) -> dict[str, Any]:
+    return {
+        "destination": preference.destination,
+        "startDate": preference.startDate,
+        "days": preference.days,
+        "peopleCount": preference.peopleCount,
+        "pace": preference.pace,
+        "interests": preference.interests[:6],
+        "dislikes": preference.dislikes[:6],
+        "budgetLevel": preference.budgetLevel,
+        "hotelArea": preference.hotelArea,
+        "transportPreference": preference.transportPreference[:4],
+    }
+
+
+def _compact_places_for_itinerary(places: list[Place]) -> list[dict[str, Any]]:
+    selected = [place for place in places if place.userStatus == "want"] or list(places)
+    compact: list[dict[str, Any]] = []
+    for place in selected[:ITINERARY_AI_PLACE_LIMIT]:
+        item: dict[str, Any] = {
+            "id": place.id,
+            "name": place.name,
+            "type": place.type,
+            "reason": place.reason,
+            "suitableFor": place.suitableFor,
+            "estimatedTime": place.estimatedTime,
+            "warning": place.warning,
+        }
+        if place.lat is not None and place.lng is not None:
+            item["lat"] = place.lat
+            item["lng"] = place.lng
+        compact.append(item)
+    return compact
 
 
 def _safe_parse_places(result: Any) -> list[Place]:

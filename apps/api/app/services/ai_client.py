@@ -21,6 +21,11 @@ from ..config import Settings
 
 logger = logging.getLogger("travel_ai_planner.ai")
 
+DEFAULT_TIMEOUT_SECONDS = 45.0
+DEFAULT_MAX_TOKENS = 1600
+DEBUG_TIMEOUT_SECONDS = 20.0
+DEBUG_MAX_TOKENS = 64
+
 # 用于脱敏的正则：Authorization Bearer、sk-xxx 风格 Key 等
 _BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+", re.IGNORECASE)
 _SK_KEY_RE = re.compile(r"sk-[A-Za-z0-9_\-]{6,}", re.IGNORECASE)
@@ -65,7 +70,8 @@ class AIClient:
         user_prompt: str,
         *,
         temperature: float = 0.4,
-        timeout: float = 45.0,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> tuple[Any | None, str | None]:
         if not self.enabled:
             return None, "未配置 AI_API_KEY，已使用 Mock 数据。"
@@ -76,6 +82,7 @@ class AIClient:
             temperature=temperature,
             timeout=timeout,
             require_json=True,
+            max_tokens=max_tokens,
         )
         if outcome["ok"]:
             content = outcome["content"]
@@ -87,10 +94,10 @@ class AIClient:
                     self._settings.ai_model,
                     _sanitize(content, limit=500),
                 )
-                return None, f"AI 返回内容解析失败：{exc}".strip()
+                return None, "AI 返回格式异常，已使用后端模板"
         return None, outcome["warning"]
 
-    async def debug_probe(self, *, timeout: float = 20.0) -> dict[str, Any]:
+    async def debug_probe(self, *, timeout: float = DEBUG_TIMEOUT_SECONDS) -> dict[str, Any]:
         """调试用：发起一次最小化 chat/completions 请求，返回结构化诊断。
 
         - 不返回 API Key；rawPreview 经过脱敏；最大 500 字符。
@@ -108,6 +115,8 @@ class AIClient:
             "errorMessage": None,
             "rawPreview": "",
             "parsedJsonOk": False,
+            "timeoutSeconds": timeout,
+            "maxTokens": DEBUG_MAX_TOKENS,
         }
         if not self.enabled:
             info["errorType"] = "not_configured"
@@ -123,7 +132,7 @@ class AIClient:
             temperature=0.0,
             timeout=timeout,
             require_json=True,
-            max_tokens=64,
+            max_tokens=DEBUG_MAX_TOKENS,
         )
         info["statusCode"] = outcome.get("statusCode")
         info["errorType"] = outcome.get("errorType")
@@ -143,7 +152,7 @@ class AIClient:
                 info["ok"] = False
                 info["parsedJsonOk"] = False
                 info["errorType"] = "parse_error"
-                info["errorMessage"] = f"AI 返回非合法 JSON：{exc}"
+                info["errorMessage"] = f"AI 返回格式异常：{exc}"
         return info
 
     async def _raw_chat_completion(
@@ -213,7 +222,7 @@ class AIClient:
                     preview,
                 )
                 result["errorType"] = "empty_content"
-                result["warning"] = "AI 返回结构异常：未找到 choices[0].message.content"
+                result["warning"] = "AI 返回格式异常，已使用后端模板"
                 result["rawPreview"] = preview
                 return result
 
@@ -225,7 +234,7 @@ class AIClient:
                     preview,
                 )
                 result["errorType"] = "empty_content"
-                result["warning"] = "AI 返回 content 为空字符串"
+                result["warning"] = "AI 返回格式异常，已使用后端模板"
                 result["rawPreview"] = preview
                 return result
 
@@ -241,7 +250,7 @@ class AIClient:
                 _sanitize(str(exc), limit=200),
             )
             result["errorType"] = "timeout"
-            result["warning"] = f"AI 请求超时（{timeout}s）"
+            result["warning"] = f"AI 请求超时（{timeout}s），已使用后端模板"
             return result
         except httpx.HTTPError as exc:
             logger.warning(
@@ -251,7 +260,7 @@ class AIClient:
                 _sanitize(str(exc), limit=200),
             )
             result["errorType"] = "request_error"
-            result["warning"] = f"AI 请求失败（{type(exc).__name__}）"
+            result["warning"] = f"AI 请求失败（{type(exc).__name__}），已使用后端模板"
             return result
         except json.JSONDecodeError as exc:
             logger.warning(
@@ -260,7 +269,7 @@ class AIClient:
                 _sanitize(str(exc), limit=200),
             )
             result["errorType"] = "parse_error"
-            result["warning"] = "AI 返回的 HTTP body 不是合法 JSON"
+            result["warning"] = "AI 返回格式异常，已使用后端模板"
             return result
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -270,7 +279,7 @@ class AIClient:
                 _sanitize(str(exc), limit=200),
             )
             result["errorType"] = "unknown"
-            result["warning"] = f"AI 调用异常（{type(exc).__name__}）"
+            result["warning"] = f"AI 请求失败（{type(exc).__name__}），已使用后端模板"
             return result
 
 

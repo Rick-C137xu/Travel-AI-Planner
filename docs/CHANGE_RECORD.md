@@ -1,5 +1,35 @@
 # Change Record
 
+## 2026-05-20 V4.1.1 AI timeout/token hotfix
+
+### 背景
+
+线上 `/api/debug/ai` 已验证 DeepSeek OpenAI-compatible 配置、模型名与网络连通性正常，但 `/api/itinerary/generate` 在生成行程时出现 45s 超时并降级为后端模板。判断主要原因是行程生成 prompt 携带完整地点对象、字段过多且未限制业务 `max_tokens`。
+
+### 修改
+
+- `apps/api/app/services/ai_client.py`
+  - 为业务 AI JSON 调用增加默认 `max_tokens=1600`，保留默认 `timeout=45.0s`。
+  - `/api/debug/ai` 结果补充 `timeoutSeconds` 与 `maxTokens`，继续不返回任何 API Key。
+  - 将超时、JSON/格式异常、其他请求失败的 warning 文案分得更清楚，避免把完整 AI 返回内容暴露给前端。
+- `apps/api/app/services/planner_service.py`
+  - `/api/itinerary/generate` 生成 AI prompt 时不再传完整 `Place` 对象。
+  - 仅传行程需要的精简字段：`id/name/type/reason/suitableFor/estimatedTime/warning/lat/lng`。
+  - 仅使用已选地点；若地点较多，最多传前 8 个已排序地点。
+  - 行程生成请求使用更短 system/user prompt、`temperature=0.3`、`max_tokens=1200`，并要求只输出 JSON。
+  - 保留 AI 失败时后端模板降级；超时、格式异常、其他失败会给出更明确 warning，地点仍来自高德 POI。
+- `docs/CHANGE_RECORD.md`
+  - 记录本次 V4.1.1 hotfix。
+- `docs/DEPLOYMENT.md`
+  - 补充 V4.1.1 部署与验证说明。
+
+### 未修改
+
+- 未修改 `AI_MODEL` 默认值或线上模型名，继续兼容 `AI_MODEL=deepseek-v4-flash`。
+- 未写入任何真实 `AI_API_KEY`、`AMAP_KEY` 或私密部署配置。
+- 未修改高德地图 POI 搜索逻辑。
+- 未修改前端业务流程。
+
 ## 2026-05-20 V4.1 AI 调试增强（DeepSeek 排查）
 
 ### 背景

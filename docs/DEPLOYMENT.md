@@ -1,5 +1,26 @@
 # V4.1 部署指南
 
+## V4.1.1 AI 行程生成 timeout/token hotfix
+
+本次修复只影响 Render 后端代码。前端 Vercel 环境变量、高德 Key、DeepSeek Key 和 `AI_MODEL` 不需要改动。
+
+后端 `/api/itinerary/generate` 已减少传给 DeepSeek 的内容：
+- 不再传完整 `Place` 对象。
+- 只传已选地点的行程必要字段：`id/name/type/reason/suitableFor/estimatedTime/warning/lat/lng`。
+- 地点较多时最多传前 8 个已排序地点。
+- 行程生成 AI 请求限制 `max_tokens=1200`，`temperature=0.3`，并要求只输出 JSON。
+
+AI 调用失败时仍保留原降级策略：
+- AI 成功：`dataSourceLabel="高德地图 + AI"`。
+- AI 超时、返回格式异常或其他失败：`dataSourceLabel="高德地图 + 后端模板"`，地点仍来自高德 POI。
+- `/api/debug/ai` 会返回非敏感诊断字段，包括 `timeoutSeconds`、`maxTokens`、`errorType`、`errorMessage`，不会返回任何 API Key。
+
+部署后建议验证：
+1. 打开 `https://travel-ai-planner-api.onrender.com/api/health`，确认 `aiEnabled=true`、`amapEnabled=true`、`dataMode="高德地图 + AI"`。
+2. 打开 `https://travel-ai-planner-api.onrender.com/api/debug/ai`，确认 `ok=true`、`parsedJsonOk=true`，并查看 `timeoutSeconds` / `maxTokens`。
+3. 在 Vercel 前端完整走一遍问答、推荐地点、选择 6-8 个地点、生成行程。
+4. 在浏览器 Network 中确认 `POST /api/itinerary/generate` 返回 200，并观察页面 Header 是否从 `V4.1 AI Fallback` 恢复为 `V4.1 AI + Amap`。
+
 ## V2 前端静态部署回顾
 
 V2 / V2.1 的线上前端部署在 Vercel，`apps/web` 可以作为纯静态站点运行。默认环境变量为：
