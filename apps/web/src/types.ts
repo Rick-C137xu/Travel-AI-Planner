@@ -97,4 +97,4 @@ export interface ApiEnvelope<T> {
   weather?: WeatherInfo | null;
 }
 
-export type AppStep = 'start' | 'chat' | 'places' | 'itinerary';
+export type AppStep = 'start' | 'chat' | 'quickStart' | 'places' | 'itinerary';

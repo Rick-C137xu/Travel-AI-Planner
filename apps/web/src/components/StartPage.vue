@@ -14,8 +14,8 @@ const savedProfile = ref(getUserPreferences());
 const showPreferenceManager = ref(false);
 const recommendationText = computed(() =>
   isFrontendMockMode
-    ? '当前为 V4.4 / 前端 Mock 模式，使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。'
-    : '当前为 V4.4 后端模式，会请求后端推荐与行程接口；未配置 AI_API_KEY 时返回后端 Mock 数据。'
+    ? '当前为 V4.4.1 / 前端 Mock 模式，使用更贴近城市的内置 Mock 数据，也支持粘贴攻略文本做演示提取。'
+    : '当前为 V4.4.1 后端模式，会请求后端推荐与行程接口；未配置 AI_API_KEY 时返回后端 Mock 数据。'
 );
 const savedPreferenceSummary = computed(() =>
   savedProfile.value ? summarizeUserPreferences(savedProfile.value) : []
@@ -23,6 +23,13 @@ const savedPreferenceSummary = computed(() =>
 
 function start() {
   state.step = 'chat';
+}
+
+function quickStartWithPreferences() {
+  if (savedProfile.value) {
+    state.preference = mergePreferencesIntoTravelForm(state.preference, savedProfile.value);
+    state.step = 'quickStart';
+  }
 }
 
 function useSavedPreferences() {
@@ -54,12 +61,12 @@ function clearSavedPreferences() {
         通过问答收集目的地、天数、偏好和雷区，先推荐候选地点，让你选择想去或避开，再生成每日行程并在地图区域展示地点。
       </p>
       <div v-if="savedProfile" class="preference-prompt">
-        <strong>检测到你已保存默认旅行偏好，是否使用？</strong>
-        <span>数据仅保存在当前浏览器，不会上传到服务器；换设备或清理缓存后不会同步。</span>
+        <strong>检测到你已保存默认旅行偏好，可以直接快速开始</strong>
+        <span>本次只需要补充目的地、日期和人数。数据仅保存在当前浏览器，不会上传到服务器。</span>
         <div class="preference-actions">
-          <button class="primary-btn" @click="useSavedPreferences">使用默认偏好</button>
-          <button class="ghost-btn" @click="startFresh">重新填写</button>
-          <button class="ghost-btn" @click="showPreferenceManager = !showPreferenceManager">管理偏好</button>
+          <button class="primary-btn" @click="quickStartWithPreferences">使用默认偏好快速开始</button>
+          <button class="ghost-btn" @click="startFresh">重新填写完整问答</button>
+          <button class="ghost-btn" @click="showPreferenceManager = !showPreferenceManager">管理默认偏好</button>
         </div>
       </div>
       <button v-else class="primary-btn large" @click="start">开始规划</button>
@@ -75,8 +82,8 @@ function clearSavedPreferences() {
     </div>
     <div class="feature-panel">
       <div class="feature-item">
-        <strong>本地偏好保存</strong>
-        <span>V4.4 支持保存常用节奏、兴趣、预算、住宿和交通偏好；仅保存在当前浏览器。</span>
+        <strong>快速开始</strong>
+        <span>V4.4.1 支持保存常用偏好并快速开始；使用默认偏好时只需补充目的地、日期和人数。</span>
       </div>
       <div class="feature-item">
         <strong>问答收集需求</strong>
