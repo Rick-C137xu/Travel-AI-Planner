@@ -1,61 +1,70 @@
 /**
- * V4.3.3 前端 POI 去重与地点聚合工具。
+ * V4.3.4 前端 POI 去重与全国通用主地点聚合工具。
  *
- * V4.3.2 → V4.3.3 增强：
- * - 景区内部子景点聚合（翠湖·阮堤 / 翠湖公园游乐场 → 翠湖公园）。
- * - 高校内部学院/校区聚合（云南大学呈贡校区新闻学院 → 云南大学）。
- * - 住宿类 POI 过滤（民宿/酒店/客栈不作为景点推荐）。
- *
- * 与 apps/api/app/place_dedupe.py 保持同名 / 同语义实现，覆盖：
- * - 前端 Mock 模式（VITE_USE_MOCK=true）下 mockPlanner.ts 的返回。
- * - 后端模式下 services/api.ts 拿到后端返回后的兜底去重。
- *
- * 不依赖任何运行时库，仅按名称 / 类别规则去重；真实坐标聚类留到接入真实地图 API 后处理。
+ * 与 apps/api/app/place_dedupe.py 保持同名 / 同语义实现。
  */
 import type { Place } from '@/types';
 
-// 末尾附属后缀：按长度从长到短匹配，避免「地下停车场」被「停车场」先吃掉。
 const AUXILIARY_SUFFIXES: readonly string[] = [
   '出租车上客点',
   '网约车上车点',
-  '地上停车场',
   '地下停车场',
+  '地上停车场',
+  '停车点',
+  '停车场',
+  '游客服务中心',
   '游客中心',
   '服务中心',
-  '服务区',
+  '咨询处',
+  '售票大厅',
+  '售票厅',
   '售票处',
-  '停车场',
-  '公交站',
-  '地铁站',
+  '检票口',
+  '码头候船厅',
+  '候船厅',
+  '公共厕所',
   '卫生间',
   '洗手间',
+  '厕所',
+  '公交站',
+  '地铁站',
+  '火车站',
+  '汽车站',
+  '机场',
   '进出口',
+  '出入口',
+  '入口',
+  '出口',
   '东门',
   '西门',
   '南门',
   '北门',
   '正门',
   '后门',
-  '侧门',
-  '入口',
-  '出口'
+  '侧门'
 ];
 
 const AUXILIARY_CATEGORY_HINTS: readonly string[] = [
   '停车场',
+  '停车点',
   '公交站',
   '地铁站',
+  '火车站',
+  '汽车站',
+  '机场',
   '出入口',
   '卫生间',
   '洗手间',
   '公共厕所',
+  '厕所',
   '出租车',
   '网约车',
   '加油站',
-  '充电站'
+  '充电站',
+  '售票处',
+  '游客中心'
 ];
 
-// V4.3.3：住宿类 POI 关键词，不应作为景点推荐。
 const LODGING_KEYWORDS: readonly string[] = [
   '酒店',
   '宾馆',
@@ -70,7 +79,8 @@ const LODGING_KEYWORDS: readonly string[] = [
   '招待所'
 ];
 
-// V4.3.3：其他低价值 POI 关键词。
+const FOOD_SHOP_KEYWORDS: readonly string[] = ['餐厅', '饭店', '小吃店', '便利店', '超市', '商铺'];
+
 const LOW_VALUE_KEYWORDS: readonly string[] = [
   '写字楼',
   '商务楼',
@@ -82,9 +92,101 @@ const LOW_VALUE_KEYWORDS: readonly string[] = [
   '中介'
 ];
 
-// V4.3.3：景区内部子景点聚合规则（昆明重点）。
+const UNIVERSITY_SUBUNIT_KEYWORDS: readonly string[] = [
+  '校区',
+  '学院',
+  '学部',
+  '系',
+  '图书馆',
+  '食堂',
+  '教学楼',
+  '实验楼',
+  '宿舍',
+  '体育馆',
+  '行政楼',
+  '研究院',
+  '东门',
+  '西门',
+  '南门',
+  '北门',
+  '正门',
+  '停车场',
+  '生活区',
+  '学生公寓',
+  '校医院',
+  '南校园',
+  '北校园',
+  '东校园',
+  '西校园'
+];
+
+const SCENIC_MAIN_TERMS: readonly string[] = [
+  '风景区',
+  '博物院',
+  '博物馆',
+  '纪念馆',
+  '步行街',
+  '旅游区',
+  '公园',
+  '景区',
+  '古镇',
+  '古城',
+  '老街',
+  '街区',
+  '广场',
+  '码头',
+  '寺',
+  '庙',
+  '宫',
+  '塔',
+  '湖',
+  '山',
+  '岛',
+  '湾',
+  '滩',
+  '坊',
+  '巷',
+  '街',
+  '园',
+  '城',
+  '村',
+  '寨'
+];
+
+const SCENIC_CHILD_KEYWORDS: readonly string[] = [
+  '游客中心',
+  '服务中心',
+  '东广场',
+  '西广场',
+  '南广场',
+  '北广场',
+  '游乐场',
+  '游船码头',
+  '码头',
+  '午门',
+  '神武门',
+  '东门',
+  '西门',
+  '南门',
+  '北门',
+  '入口',
+  '出口',
+  '售票处',
+  '停车场',
+  '音乐喷泉',
+  '步行街',
+  '秦淮风光带'
+];
+
 const SCENIC_AGGREGATION_RULES: ReadonlyArray<readonly [string, string]> = [
   ['翠湖', '翠湖公园'],
+  ['西湖风景区', '西湖风景区'],
+  ['西湖', '西湖'],
+  ['宽窄巷子', '宽窄巷子'],
+  ['故宫博物院', '故宫博物院'],
+  ['故宫', '故宫博物院'],
+  ['夫子庙', '夫子庙'],
+  ['鼓浪屿', '鼓浪屿'],
   ['滇池', '滇池'],
   ['海埂大坝', '滇池海埂大坝'],
   ['西山', '西山风景区'],
@@ -92,35 +194,10 @@ const SCENIC_AGGREGATION_RULES: ReadonlyArray<readonly [string, string]> = [
   ['金马碧鸡坊', '金马碧鸡坊'],
   ['昆明老街', '昆明老街'],
   ['南强街', '南强街'],
-  ['斗南花市', '斗南花市'],
-  ['斗南花卉市场', '斗南花市']
+  ['斗南花卉市场', '斗南花市'],
+  ['斗南花市', '斗南花市']
 ];
 
-// V4.3.3：高校内部子单位聚合规则（昆明重点）。
-const UNIVERSITY_NAMES: readonly string[] = [
-  '云南大学',
-  '昆明理工大学',
-  '云南师范大学',
-  '云南民族大学',
-  '云南财经大学',
-  '昆明医科大学'
-];
-
-const UNIVERSITY_SUBUNIT_SUFFIXES: readonly string[] = [
-  '学院',
-  '校区',
-  '图书馆',
-  '教学楼',
-  '实验楼',
-  '行政楼',
-  '食堂',
-  '宿舍',
-  '体育馆',
-  '操场',
-  '礼堂'
-]
-
-// 形似附属但实际是知名主地点，归一化时直接放过，避免「中华门 → 中华」误伤。
 const KNOWN_MAIN_PLACES: ReadonlySet<string> = new Set([
   '中华门',
   '凯旋门',
@@ -146,67 +223,82 @@ const KNOWN_MAIN_PLACES: ReadonlySet<string> = new Set([
 ]);
 
 const CHINESE_RE = /[\u4e00-\u9fff]/;
+const CHILD_SEPARATOR_RE = /[-—·•（(：:]/u;
 
 function hasChinese(text: string): boolean {
   return CHINESE_RE.test(text);
 }
 
 function stripTrailingSeparators(text: string): string {
-  return text.replace(/[\s\-·、_/]+$/u, '');
+  return text.replace(/[\s\-—·•、_/:：(]+$/u, '').trim();
 }
 
-/**
- * 剥离末尾附属后缀，得到主地点名。
- *
- * V4.3.3 增强：
- * - 景区内部子景点聚合：「翠湖·阮堤」→「翠湖公园」。
- * - 高校内部子单位聚合：「云南大学呈贡校区新闻学院」→「云南大学」。
- *
- * 示例：
- * - 云南大学东门 → 云南大学
- * - 翠湖公园南门 → 翠湖公园
- * - 云南大学东门停车场 → 云南大学（叠加后缀也能剥干净）
- * - 翠湖·阮堤 / 翠湖公园游乐场 / 昆明翠湖公园-竹林岛 → 翠湖公园
- * - 云南大学呈贡校区新闻学院 → 云南大学
- * - 中华门 / 朝阳门 / 前门大街 / 东门老街 → 原样返回（白名单 + 末尾不匹配规则保护）
- */
+function extractUniversityMain(name: string): string | null {
+  const matches = name.matchAll(/大学/g);
+  for (const match of matches) {
+    const index = match.index ?? -1;
+    const end = index + '大学'.length;
+    if (name[end] === '城') continue;
+    const main = name.slice(0, end).trim();
+    if (main.length < 3 || !hasChinese(main)) continue;
+    const remainder = name.slice(end);
+    if (!remainder) return main;
+    if (UNIVERSITY_SUBUNIT_KEYWORDS.some((keyword) => remainder.includes(keyword))) return main;
+    if (remainder.length >= 1) return main;
+  }
+  return null;
+}
+
+function splitByChildSeparator(name: string): string | null {
+  const match = CHILD_SEPARATOR_RE.exec(name);
+  if (!match || match.index <= 0) return null;
+  const main = stripTrailingSeparators(name.slice(0, match.index));
+  return main.length >= 2 && hasChinese(main) ? main : null;
+}
+
+function extractScenicMain(name: string): string | null {
+  const separated = splitByChildSeparator(name);
+  if (separated) return normalizePlaceName(separated);
+
+  if (SCENIC_AGGREGATION_RULES.some(([, mainName]) => name === mainName)) return name;
+
+  for (const [keyword, mainName] of SCENIC_AGGREGATION_RULES) {
+    if (name.includes(keyword) && name !== mainName) return mainName;
+  }
+
+  const terms = [...SCENIC_MAIN_TERMS].sort((a, b) => b.length - a.length);
+  for (const term of terms) {
+    const index = name.indexOf(term);
+    if (index <= 0) continue;
+    const end = index + term.length;
+    const main = name.slice(0, end);
+    const remainder = name.slice(end);
+    if (remainder && SCENIC_CHILD_KEYWORDS.some((keyword) => remainder.includes(keyword))) {
+      return main;
+    }
+  }
+  return null;
+}
+
 export function normalizePlaceName(name: string): string {
   if (typeof name !== 'string') return '';
   let current = name.trim();
   if (!current) return '';
   if (KNOWN_MAIN_PLACES.has(current)) return current;
 
-  // V4.3.3：景区内部子景点聚合
-  for (const [keyword, mainName] of SCENIC_AGGREGATION_RULES) {
-    if (current.includes(keyword)) {
-      return mainName;
-    }
-  }
+  const universityMain = extractUniversityMain(current);
+  if (universityMain) return universityMain;
 
-  // V4.3.3：高校内部子单位聚合
-  for (const uniName of UNIVERSITY_NAMES) {
-    if (current.includes(uniName) && current.length > uniName.length) {
-      const idx = current.indexOf(uniName);
-      const remainder = current.slice(idx + uniName.length);
-      for (const suffix of UNIVERSITY_SUBUNIT_SUFFIXES) {
-        if (remainder.includes(suffix)) {
-          return uniName;
-        }
-      }
-      if (current.length > uniName.length + 1) {
-        return uniName;
-      }
-    }
-  }
+  const scenicMain = extractScenicMain(current);
+  if (scenicMain && scenicMain !== current) return scenicMain;
 
-  // 原有逻辑：剥离末尾附属后缀
   while (true) {
     let stripped = current;
     for (const suffix of AUXILIARY_SUFFIXES) {
       if (stripped.endsWith(suffix) && stripped.length > suffix.length) {
         const candidate = stripTrailingSeparators(stripped.slice(0, -suffix.length));
         if (candidate.length >= 2 && hasChinese(candidate)) {
-          stripped = candidate;
+          stripped = normalizePlaceName(candidate);
           break;
         }
       }
@@ -218,46 +310,32 @@ export function normalizePlaceName(name: string): string {
   return current;
 }
 
-/**
- * 是否为不该独立展示的附属 POI。
- *
- * V4.3.3 增强：
- * - 住宿类 POI 过滤：「滇池逸境民宿」「XX酒店」「XX客栈」→ true。
- * - 低价值 POI 过滤：「XX写字楼」「XX小区」「XX售楼处」→ true。
- *
- * 判定逻辑：
- * 1. 类别命中 AUXILIARY_CATEGORY_HINTS（停车场 / 公交站 / 出入口...）→ true。
- * 2. 名称或类别命中住宿类关键词（酒店/民宿/客栈/宾馆/旅馆/公寓/青旅）→ true。
- * 3. 名称或类别命中低价值关键词（写字楼/小区/住宅/售楼处）→ true。
- * 4. 名称是主地点白名单则一定返回 false，避免误判。
- * 5. 名称末尾是附属后缀，且剥离后剩余 ≥ 2 个中文字符（说明原名只是某主地点的附属）→ true。
- * 6. 否则 false。
- */
+function looksLikeChildPlace(raw: string, normalized: string): boolean {
+  if (KNOWN_MAIN_PLACES.has(normalized)) return false;
+  const remainder = raw.replace(normalized, '');
+  return [...UNIVERSITY_SUBUNIT_KEYWORDS, ...SCENIC_CHILD_KEYWORDS, ...AUXILIARY_SUFFIXES].some((keyword) =>
+    remainder.includes(keyword)
+  );
+}
+
 export function isAuxiliaryPoi(name: string, category?: string | null): boolean {
   if (typeof name !== 'string' || !name.trim()) return true;
   const raw = name.trim();
   const cat = category || '';
 
-  // V4.3.3：住宿类 POI 过滤
-  for (const keyword of LODGING_KEYWORDS) {
-    if (raw.includes(keyword) || cat.includes(keyword)) return true;
-  }
-
-  // V4.3.3：低价值 POI 过滤
-  for (const keyword of LOW_VALUE_KEYWORDS) {
-    if (raw.includes(keyword) || cat.includes(keyword)) return true;
-  }
-
-  // 原有逻辑
-  if (AUXILIARY_CATEGORY_HINTS.some((hint) => cat.includes(hint))) return true;
   if (KNOWN_MAIN_PLACES.has(raw)) return false;
+  for (const keyword of [...LODGING_KEYWORDS, ...FOOD_SHOP_KEYWORDS, ...LOW_VALUE_KEYWORDS]) {
+    if (raw.includes(keyword) || cat.includes(keyword)) return true;
+  }
+  if (AUXILIARY_CATEGORY_HINTS.some((hint) => cat.includes(hint))) return true;
   for (const suffix of AUXILIARY_SUFFIXES) {
     if (raw.endsWith(suffix) && raw.length > suffix.length) {
       const remainder = stripTrailingSeparators(raw.slice(0, -suffix.length));
-      if (remainder.length >= 2 && hasChinese(remainder)) return true;
+      if (remainder.length >= 2) return true;
     }
   }
-  return false;
+  const normalized = normalizePlaceName(raw);
+  return Boolean(normalized && normalized !== raw && looksLikeChildPlace(raw, normalized));
 }
 
 interface DedupeLike {
@@ -267,10 +345,28 @@ interface DedupeLike {
   description?: string;
   address?: string;
   suitableFor?: string;
+  rating?: number;
+  score?: number;
+  weight?: number;
+}
+
+function badDisplayScore(name: string, category?: string | null): number {
+  let score = isAuxiliaryPoi(name, category) ? 100 : 0;
+  for (const keyword of [...UNIVERSITY_SUBUNIT_KEYWORDS, ...AUXILIARY_SUFFIXES, ...LODGING_KEYWORDS]) {
+    if (name.includes(keyword)) score += 12;
+  }
+  for (const keyword of [...FOOD_SHOP_KEYWORDS, ...LOW_VALUE_KEYWORDS]) {
+    if (name.includes(keyword)) score += 20;
+  }
+  return score;
 }
 
 function contentScore(entry: DedupeLike): number {
   let score = 0;
+  for (const key of ['rating', 'score', 'weight'] as const) {
+    const value = entry[key];
+    if (typeof value === 'number') score += Math.round(value * 10);
+  }
   for (const key of ['reason', 'description', 'address', 'suitableFor'] as const) {
     const value = entry[key];
     if (typeof value === 'string') score += Math.min(value.length, 80);
@@ -278,28 +374,14 @@ function contentScore(entry: DedupeLike): number {
   return score;
 }
 
-/**
- * 按归一化后的主地点名去重并合并。
- *
- * 规则：
- * 1. 同一归一化名下，非附属 POI 优先；并列时按 reason/address 完整度优先。
- * 2. 不破坏 Place 数据结构，仅在「整条都是附属」时把 name 替换为归一化后的主名。
- * 3. 保持首次出现顺序（按代表条目在输入里的首次出现位置）。
- * 4. 永不返回空列表：极端情况下回退到原输入。
- */
 export function dedupePlaces<T extends Place>(places: readonly T[]): T[] {
   if (!Array.isArray(places) || places.length === 0) return [];
   const groups = new Map<string, Array<{ index: number; item: T }>>();
   const order: string[] = [];
+
   places.forEach((item, index) => {
     const rawName = typeof item?.name === 'string' ? item.name : '';
-    let key: string;
-    if (!rawName.trim()) {
-      key = `__unnamed__::${index}`;
-    } else {
-      const normalized = normalizePlaceName(rawName);
-      key = normalized || rawName.trim();
-    }
+    const key = rawName.trim() ? normalizePlaceName(rawName) || rawName.trim() : `__unnamed__::${index}`;
     if (!groups.has(key)) {
       groups.set(key, []);
       order.push(key);
@@ -311,15 +393,15 @@ export function dedupePlaces<T extends Place>(places: readonly T[]): T[] {
   for (const key of order) {
     const bucket = groups.get(key)!;
     bucket.sort((a, b) => {
-      const auxA = isAuxiliaryPoi(a.item.name, a.item.type) ? 1 : 0;
-      const auxB = isAuxiliaryPoi(b.item.name, b.item.type) ? 1 : 0;
-      if (auxA !== auxB) return auxA - auxB;
+      const badDiff = badDisplayScore(a.item.name, a.item.type) - badDisplayScore(b.item.name, b.item.type);
+      if (badDiff !== 0) return badDiff;
+      const lengthDiff = Math.abs(a.item.name.length - key.length) - Math.abs(b.item.name.length - key.length);
+      if (lengthDiff !== 0) return lengthDiff;
       const scoreDiff = contentScore(b.item) - contentScore(a.item);
       if (scoreDiff !== 0) return scoreDiff;
       return a.index - b.index;
     });
-    const winner = bucket[0].item;
-    deduped.push(maybeRenameToMain(winner, key));
+    deduped.push(maybeRenameToMain(bucket[0].item, key));
   }
   return deduped.length ? deduped : [...places];
 }
@@ -327,7 +409,7 @@ export function dedupePlaces<T extends Place>(places: readonly T[]): T[] {
 function maybeRenameToMain<T extends Place>(item: T, normalizedName: string): T {
   if (!normalizedName || typeof item?.name !== 'string') return item;
   if (item.name.trim() === normalizedName) return item;
-  if (!isAuxiliaryPoi(item.name, item.type)) return item;
   if (KNOWN_MAIN_PLACES.has(item.name.trim())) return item;
+  if (!isAuxiliaryPoi(item.name, item.type) && normalizePlaceName(item.name) !== normalizedName) return item;
   return { ...item, name: normalizedName };
 }

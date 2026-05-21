@@ -1,44 +1,40 @@
-"""V4.3.3 POI 去重与地点聚合（后端）。
-
-V4.3.2 → V4.3.3 增强：
-- 景区内部子景点聚合（翠湖·阮堤 / 翠湖公园游乐场 → 翠湖公园）。
-- 高校内部学院/校区聚合（云南大学呈贡校区新闻学院 → 云南大学）。
-- 住宿类 POI 过滤（民宿/酒店/客栈不作为景点推荐）。
-
-只用名称 / 类别规则，不做坐标聚类——真实坐标聚类留到接入真实地图 API 之后。
-
-核心目标：
-1. 把「云南大学东门 / 云南大学西门 / 云南大学北门 / 云南大学停车场」这种
-   明显属于同一主地点的附属 POI 合并为「云南大学」。
-2. 把「翠湖·阮堤 / 翠湖公园游乐场 / 昆明翠湖公园-竹林岛」聚合为「翠湖公园」。
-3. 把「云南大学呈贡校区新闻学院 / 云南大学呈贡校区药学院」聚合为「云南大学」。
-4. 过滤入口、停车场、卫生间、民宿、酒店、客栈等低价值 POI。
-
-注意：
-- 不能把「中华门 / 朝阳门 / 西直门 / 宣武门 / 玄武门 / 凯旋门 / 前门大街 / 东门老街」
-  这种本身就是知名主地点的名字误删。
-- 不依赖任何第三方库，可以被前端、后端、Mock 多处复用。
-"""
+"""V4.3.4 POI 去重与全国通用主地点聚合（后端）。"""
 from __future__ import annotations
 
+import re
 from typing import Iterable, TypeVar
 
-# 末尾附属后缀：按长度从长到短匹配，避免「地下停车场」被「停车场」先吃掉。
+
 _AUXILIARY_SUFFIXES: tuple[str, ...] = (
     "出租车上客点",
     "网约车上车点",
-    "地上停车场",
     "地下停车场",
+    "地上停车场",
+    "停车点",
+    "停车场",
+    "游客服务中心",
     "游客中心",
     "服务中心",
-    "服务区",
+    "咨询处",
+    "售票大厅",
+    "售票厅",
     "售票处",
-    "停车场",
-    "公交站",
-    "地铁站",
+    "检票口",
+    "候船厅",
+    "码头候船厅",
+    "公共厕所",
     "卫生间",
     "洗手间",
+    "厕所",
+    "公交站",
+    "地铁站",
+    "火车站",
+    "汽车站",
+    "机场",
     "进出口",
+    "出入口",
+    "入口",
+    "出口",
     "东门",
     "西门",
     "南门",
@@ -46,26 +42,29 @@ _AUXILIARY_SUFFIXES: tuple[str, ...] = (
     "正门",
     "后门",
     "侧门",
-    "入口",
-    "出口",
 )
 
-# 这些类别词只要出现就视为附属 POI，不论名称是否含特殊后缀。
 _AUXILIARY_CATEGORY_HINTS: tuple[str, ...] = (
     "停车场",
+    "停车点",
     "公交站",
     "地铁站",
+    "火车站",
+    "汽车站",
+    "机场",
     "出入口",
     "卫生间",
     "洗手间",
     "公共厕所",
+    "厕所",
     "出租车",
     "网约车",
     "加油站",
     "充电站",
+    "售票处",
+    "游客中心",
 )
 
-# V4.3.3：住宿类 POI 关键词，不应作为景点推荐。
 _LODGING_KEYWORDS: tuple[str, ...] = (
     "酒店",
     "宾馆",
@@ -80,7 +79,15 @@ _LODGING_KEYWORDS: tuple[str, ...] = (
     "招待所",
 )
 
-# V4.3.3：其他低价值 POI 关键词。
+_FOOD_SHOP_KEYWORDS: tuple[str, ...] = (
+    "餐厅",
+    "饭店",
+    "小吃店",
+    "便利店",
+    "超市",
+    "商铺",
+)
+
 _LOW_VALUE_KEYWORDS: tuple[str, ...] = (
     "写字楼",
     "商务楼",
@@ -92,10 +99,101 @@ _LOW_VALUE_KEYWORDS: tuple[str, ...] = (
     "中介",
 )
 
-# V4.3.3：景区内部子景点聚合规则（昆明重点）。
-# 格式：(子景点关键词片段, 主景点标准名)
+_UNIVERSITY_SUBUNIT_KEYWORDS: tuple[str, ...] = (
+    "校区",
+    "学院",
+    "学部",
+    "系",
+    "图书馆",
+    "食堂",
+    "教学楼",
+    "实验楼",
+    "宿舍",
+    "体育馆",
+    "行政楼",
+    "研究院",
+    "东门",
+    "西门",
+    "南门",
+    "北门",
+    "正门",
+    "停车场",
+    "生活区",
+    "学生公寓",
+    "校医院",
+    "南校园",
+    "北校园",
+    "东校园",
+    "西校园",
+)
+
+_SCENIC_MAIN_TERMS: tuple[str, ...] = (
+    "风景区",
+    "博物院",
+    "博物馆",
+    "纪念馆",
+    "步行街",
+    "旅游区",
+    "公园",
+    "景区",
+    "古镇",
+    "古城",
+    "老街",
+    "街区",
+    "广场",
+    "码头",
+    "寺",
+    "庙",
+    "宫",
+    "塔",
+    "湖",
+    "山",
+    "岛",
+    "湾",
+    "滩",
+    "坊",
+    "巷",
+    "街",
+    "园",
+    "城",
+    "村",
+    "寨",
+)
+
+_SCENIC_CHILD_KEYWORDS: tuple[str, ...] = (
+    "游客中心",
+    "服务中心",
+    "东广场",
+    "西广场",
+    "南广场",
+    "北广场",
+    "游乐场",
+    "游船码头",
+    "码头",
+    "午门",
+    "神武门",
+    "东门",
+    "西门",
+    "南门",
+    "北门",
+    "入口",
+    "出口",
+    "售票处",
+    "停车场",
+    "音乐喷泉",
+    "步行街",
+    "秦淮风光带",
+)
+
 _SCENIC_AGGREGATION_RULES: tuple[tuple[str, str], ...] = (
     ("翠湖", "翠湖公园"),
+    ("西湖风景区", "西湖风景区"),
+    ("西湖", "西湖"),
+    ("宽窄巷子", "宽窄巷子"),
+    ("故宫博物院", "故宫博物院"),
+    ("故宫", "故宫博物院"),
+    ("夫子庙", "夫子庙"),
+    ("鼓浪屿", "鼓浪屿"),
     ("滇池", "滇池"),
     ("海埂大坝", "滇池海埂大坝"),
     ("西山", "西山风景区"),
@@ -103,36 +201,10 @@ _SCENIC_AGGREGATION_RULES: tuple[tuple[str, str], ...] = (
     ("金马碧鸡坊", "金马碧鸡坊"),
     ("昆明老街", "昆明老街"),
     ("南强街", "南强街"),
-    ("斗南花市", "斗南花市"),
     ("斗南花卉市场", "斗南花市"),
+    ("斗南花市", "斗南花市"),
 )
 
-# V4.3.3：高校内部子单位聚合规则（昆明重点）。
-_UNIVERSITY_NAMES: tuple[str, ...] = (
-    "云南大学",
-    "昆明理工大学",
-    "云南师范大学",
-    "云南民族大学",
-    "云南财经大学",
-    "昆明医科大学",
-)
-
-# 高校内部子单位后缀（学院、校区、图书馆、教学楼、食堂等）。
-_UNIVERSITY_SUBUNIT_SUFFIXES: tuple[str, ...] = (
-    "学院",
-    "校区",
-    "图书馆",
-    "教学楼",
-    "实验楼",
-    "行政楼",
-    "食堂",
-    "宿舍",
-    "体育馆",
-    "操场",
-    "礼堂",
-)
-
-# 一些「形似附属但其实是主地点」的白名单，归一化时直接放过。
 _KNOWN_MAIN_PLACES: frozenset[str] = frozenset(
     {
         "中华门",
@@ -159,22 +231,72 @@ _KNOWN_MAIN_PLACES: frozenset[str] = frozenset(
     }
 )
 
+_SEPARATOR_RE = re.compile(r"[-—·•（(：:]")
+
 
 def _has_chinese(text: str) -> bool:
     return any("\u4e00" <= ch <= "\u9fff" for ch in text)
 
 
-def normalize_place_name(name: str) -> str:
-    """剥离末尾附属后缀，得到主地点名。
+def _strip_trailing_separators(text: str) -> str:
+    return text.rstrip(" -—·•、_/:：(").strip()
 
-    V4.3.3 增强：
-    - 景区内部子景点聚合：「翠湖·阮堤」→「翠湖公园」。
-    - 高校内部子单位聚合：「云南大学呈贡校区新闻学院」→「云南大学」。
-    - 仅剥末尾匹配的附属后缀；中间出现的「东门 / 停车场」不会被破坏。
-    - 剥离后若剩余长度 < 2 个字符或没有中文字符，认为剥离不安全，回退到原始名。
-    - 命中 _KNOWN_MAIN_PLACES 时直接返回原名，避免「中华门 → 中华」这种误伤。
-    - 反复剥离，处理「云南大学东门停车场」这种叠加情况。
-    """
+
+def _extract_university_main(name: str) -> str | None:
+    """聚合「某某大学 + 子单位」，但不把「大学城」截成「大学」。"""
+    for match in re.finditer("大学", name):
+        end = match.end()
+        if end < len(name) and name[end] == "城":
+            continue
+        main = name[:end].strip()
+        if len(main) < 3 or not _has_chinese(main):
+            continue
+        remainder = name[end:]
+        if not remainder:
+            return main
+        if any(keyword in remainder for keyword in _UNIVERSITY_SUBUNIT_KEYWORDS):
+            return main
+        if len(remainder) >= 1:
+            return main
+    return None
+
+
+def _split_by_child_separator(name: str) -> str | None:
+    match = _SEPARATOR_RE.search(name)
+    if not match:
+        return None
+    main = _strip_trailing_separators(name[: match.start()])
+    if len(main) >= 2 and _has_chinese(main):
+        return main
+    return None
+
+
+def _extract_scenic_main(name: str) -> str | None:
+    separated = _split_by_child_separator(name)
+    if separated:
+        return normalize_place_name(separated)
+
+    if any(name == main_name for _, main_name in _SCENIC_AGGREGATION_RULES):
+        return name
+
+    for keyword, main_name in _SCENIC_AGGREGATION_RULES:
+        if keyword in name and name != main_name:
+            return main_name
+
+    for term in sorted(_SCENIC_MAIN_TERMS, key=len, reverse=True):
+        index = name.find(term)
+        if index <= 0:
+            continue
+        end = index + len(term)
+        main = name[:end]
+        remainder = name[end:]
+        if remainder and any(keyword in remainder for keyword in _SCENIC_CHILD_KEYWORDS):
+            return main
+    return None
+
+
+def normalize_place_name(name: str) -> str:
+    """得到用于分组的主地点名。"""
     if not isinstance(name, str):
         return ""
     current = name.strip()
@@ -183,33 +305,21 @@ def normalize_place_name(name: str) -> str:
     if current in _KNOWN_MAIN_PLACES:
         return current
 
-    # V4.3.3：景区内部子景点聚合。
-    # 示例：「翠湖·阮堤」「翠湖公园游乐场」「昆明翠湖公园-竹林岛」→「翠湖公园」
-    for keyword, main_name in _SCENIC_AGGREGATION_RULES:
-        if keyword in current:
-            return main_name
+    university_main = _extract_university_main(current)
+    if university_main:
+        return university_main
 
-    # V4.3.3：高校内部子单位聚合。
-    # 示例：「云南大学呈贡校区新闻学院」→「云南大学」
-    for uni_name in _UNIVERSITY_NAMES:
-        if uni_name in current and len(current) > len(uni_name):
-            # 检查是否包含子单位后缀
-            remainder = current[current.index(uni_name) + len(uni_name):]
-            for suffix in _UNIVERSITY_SUBUNIT_SUFFIXES:
-                if suffix in remainder:
-                    return uni_name
-            # 或者名称比大学名长但不包含子单位后缀，也可能是「云南大学XXX」形式，保守聚合
-            if len(current) > len(uni_name) + 1:
-                return uni_name
+    scenic_main = _extract_scenic_main(current)
+    if scenic_main and scenic_main != current:
+        return scenic_main
 
-    # 原有逻辑：剥离末尾附属后缀
     while True:
         stripped = current
         for suffix in _AUXILIARY_SUFFIXES:
             if stripped.endswith(suffix) and len(stripped) > len(suffix):
-                candidate = stripped[: -len(suffix)].rstrip(" -·、_/")
-                if len(candidate) >= 2 and _has_chinese(candidate) and candidate not in {""}:
-                    stripped = candidate
+                candidate = _strip_trailing_separators(stripped[: -len(suffix)])
+                if len(candidate) >= 2 and _has_chinese(candidate):
+                    stripped = normalize_place_name(candidate)
                     break
         if stripped == current:
             break
@@ -220,62 +330,62 @@ def normalize_place_name(name: str) -> str:
 
 
 def is_auxiliary_poi(name: str, category: str | None = None) -> bool:
-    """判断是否为「不该作为独立景点展示」的附属 POI。
-
-    V4.3.3 增强：
-    - 住宿类 POI 过滤：「滇池逸境民宿」「XX酒店」「XX客栈」→ True。
-    - 低价值 POI 过滤：「XX写字楼」「XX小区」「XX售楼处」→ True。
-
-    判定逻辑：
-    1. 类别命中 _AUXILIARY_CATEGORY_HINTS（如「停车场」「公交站」）→ True。
-    2. 名称或类别命中住宿类关键词（酒店/民宿/客栈/宾馆/旅馆/公寓/青旅）→ True。
-    3. 名称或类别命中低价值关键词（写字楼/小区/住宅/售楼处）→ True。
-    4. 名称命中白名单主地点 → False，避免「中华门 / 朝阳门」误判。
-    5. 名称末尾是附属后缀，且剥离后剩余至少 2 个中文字符（说明原名只是某主地点的附属
-       入口 / 停车场）→ True。
-    6. 否则 False。
-    """
+    """判断是否为不应进入旅行景点推荐的辅助 POI。"""
     if not isinstance(name, str) or not name.strip():
         return True
     raw = name.strip()
     cat = category or ""
 
-    # V4.3.3：住宿类 POI 过滤
-    for keyword in _LODGING_KEYWORDS:
-        if keyword in raw or keyword in cat:
-            return True
-
-    # V4.3.3：低价值 POI 过滤
-    for keyword in _LOW_VALUE_KEYWORDS:
-        if keyword in raw or keyword in cat:
-            return True
-
-    # 原有逻辑
-    if any(hint in cat for hint in _AUXILIARY_CATEGORY_HINTS):
-        return True
     if raw in _KNOWN_MAIN_PLACES:
         return False
+    for keyword in _LODGING_KEYWORDS + _FOOD_SHOP_KEYWORDS + _LOW_VALUE_KEYWORDS:
+        if keyword in raw or keyword in cat:
+            return True
+    if any(hint in cat for hint in _AUXILIARY_CATEGORY_HINTS):
+        return True
     for suffix in _AUXILIARY_SUFFIXES:
         if raw.endswith(suffix) and len(raw) > len(suffix):
-            remainder = raw[: -len(suffix)].rstrip(" -·、_/")
-            if len(remainder) >= 2 and _has_chinese(remainder):
+            remainder = _strip_trailing_separators(raw[: -len(suffix)])
+            if len(remainder) >= 2:
                 return True
-    return False
+    normalized = normalize_place_name(raw)
+    return bool(normalized and normalized != raw and _looks_like_child_place(raw, normalized))
 
 
-def _aux_rank(name: str, category: str | None) -> int:
-    """0 = 主地点（优先），1 = 附属。用于排序时挑「更主」的条目。"""
-    return 1 if is_auxiliary_poi(name, category) else 0
+def _looks_like_child_place(raw: str, normalized: str) -> bool:
+    if normalized in _KNOWN_MAIN_PLACES:
+        return False
+    remainder = raw.replace(normalized, "", 1)
+    return any(
+        keyword in remainder
+        for keyword in _UNIVERSITY_SUBUNIT_KEYWORDS + _SCENIC_CHILD_KEYWORDS + _AUXILIARY_SUFFIXES
+    )
+
+
+def _bad_display_score(name: str, category: str | None) -> int:
+    score = 0
+    if is_auxiliary_poi(name, category):
+        score += 100
+    for keyword in _UNIVERSITY_SUBUNIT_KEYWORDS + _AUXILIARY_SUFFIXES + _LODGING_KEYWORDS:
+        if keyword in name:
+            score += 12
+    for keyword in _FOOD_SHOP_KEYWORDS + _LOW_VALUE_KEYWORDS:
+        if keyword in name:
+            score += 20
+    return score
 
 
 def _content_score(entry: object) -> int:
-    """按 reason / description / address 完整度打分，越大越值得保留。"""
     if isinstance(entry, dict):
         getter = entry.get  # type: ignore[assignment]
     else:
         def getter(key: str, default: str = "") -> object:  # type: ignore[misc]
             return getattr(entry, key, default)
     score = 0
+    for key in ("rating", "score", "weight"):
+        value = getter(key, 0)
+        if isinstance(value, (int, float)):
+            score += int(value * 10)
     for key in ("reason", "description", "address", "suitableFor"):
         value = getter(key, "")
         if isinstance(value, str):
@@ -287,14 +397,7 @@ T = TypeVar("T")
 
 
 def dedupe_places(places: Iterable[T]) -> list[T]:
-    """按归一化后的主地点名去重并合并。
-
-    规则：
-    1. 同一归一化名下，优先保留非附属 POI；并列时按 reason/address 完整度排序。
-    2. 不破坏 Place 数据结构；只在「整条都是附属」时才把 name 替换成归一化后的主名。
-    3. 保持首次出现顺序（按代表条目在输入里第一次出现的位置）。
-    4. 永不返回空列表：若所有条目都被判定为附属，把它们按归一化主名当作候选返回。
-    """
+    """按主地点去重，并优先展示更像主地点的名称。"""
     items = list(places)
     if not items:
         return []
@@ -304,7 +407,6 @@ def dedupe_places(places: Iterable[T]) -> list[T]:
     for index, item in enumerate(items):
         name = _get_attr(item, "name", "")
         if not isinstance(name, str) or not name.strip():
-            # 没名字的条目直接跳过去重，单独保留。
             key = f"__unnamed__::{index}"
         else:
             key = normalize_place_name(name) or name.strip()
@@ -316,24 +418,21 @@ def dedupe_places(places: Iterable[T]) -> list[T]:
     deduped: list[T] = []
     for key in order:
         bucket = groups[key]
-        # 排序：非附属优先 → 内容完整度高优先 → 出现顺序靠前优先。
         bucket_sorted = sorted(
             bucket,
             key=lambda pair: (
-                _aux_rank(_get_attr(pair[1], "name", ""), _get_attr(pair[1], "type", "")),
+                _bad_display_score(
+                    str(_get_attr(pair[1], "name", "")),
+                    str(_get_attr(pair[1], "type", "")),
+                ),
+                abs(len(str(_get_attr(pair[1], "name", ""))) - len(key)),
                 -_content_score(pair[1]),
                 pair[0],
             ),
         )
-        winner_index, winner = bucket_sorted[0]
-        winner = _maybe_rename_to_main(winner, key)
-        deduped.append(winner)
-        _ = winner_index  # 仅用于排序键，不再使用
-
-    # 兜底：若全部被判定为附属导致看起来异常稀疏，回退到去重前列表。
-    if not deduped:
-        return items
-    return deduped
+        _, winner = bucket_sorted[0]
+        deduped.append(_maybe_rename_to_main(winner, key))
+    return deduped or items
 
 
 def _get_attr(item: object, key: str, default: object = "") -> object:
@@ -343,16 +442,17 @@ def _get_attr(item: object, key: str, default: object = "") -> object:
 
 
 def _maybe_rename_to_main(item: T, normalized_name: str) -> T:
-    """若原条目是附属 POI 而归一化名是合理主名，则把 name 替换为主名，便于前端展示。"""
     if not isinstance(normalized_name, str) or not normalized_name.strip():
         return item
     raw_name = _get_attr(item, "name", "")
     if not isinstance(raw_name, str) or raw_name.strip() == normalized_name:
         return item
-    if not is_auxiliary_poi(raw_name, _get_attr(item, "type", "")):  # type: ignore[arg-type]
-        return item
-    # 主地点白名单不重命名（避免「中华门 / 朝阳门」被误改）。
     if raw_name in _KNOWN_MAIN_PLACES:
+        return item
+    if not (
+        is_auxiliary_poi(raw_name, str(_get_attr(item, "type", "")))
+        or normalize_place_name(raw_name) == normalized_name
+    ):
         return item
     if isinstance(item, dict):
         new_item = dict(item)

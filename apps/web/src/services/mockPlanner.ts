@@ -187,7 +187,7 @@ export function mockExtractPlaces(preference: TravelPreference, text: string): P
 }
 
 export function mockGenerateItinerary(preference: TravelPreference, places: Place[]): DayPlan[] {
-  const selected = places.length ? places : mockRecommendPlaces(preference).slice(0, 6);
+  const selected = dedupePlaces(places.length ? places : mockRecommendPlaces(preference).slice(0, 6));
   const perDay = preference.pace === 'relaxed' ? 3 : preference.pace === 'intense' ? 5 : 4;
   const slots = ['上午', '中午', '下午', '晚上', '夜间'];
   const startDate = parseDate(preference.startDate);

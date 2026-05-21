@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V4.1：在 V4 高德 POI 已跑通的基础上接入 AI（OpenAI-compatible），并把 AI 成功 / AI 失败但高德 OK / 完全无 Key 三种状态在 envelope 与前端文案中显式区分。AI 请求失败时会保留高德 POI，文案降级为后端模板，envelope 中 `dataSourceLabel="高德地图 + 后端模板"`，前端 Header 显示 `V4.1 AI Fallback` 并附明显提示。Vercel 前端继续请求 Render 后端。
+本项目是“AI 出行旅游计划助手”。当前版本为 V4.3.4 Generic POI Aggregation：在 V4.3.2 / V4.3.3 POI 去重基础上，新增全国通用 POI 主地点聚合。高校内部学院、校区、图书馆等子单位聚合到大学主名；景区、公园、古镇、街区、博物馆、寺庙、湖山岛等内部子地点聚合到主地点；停车场、入口、售票处、游客中心、厕所、交通站点、住宿、餐饮、便利店、写字楼、小区等辅助 POI 默认不进入景点推荐。前后端去重规则必须同步维护，Vercel 前端继续请求 Render 后端。
 
 后续 agent 修改项目时请遵守以下规则：
 
@@ -25,3 +25,4 @@
 19. V4.3.2 起，任何新增地点推荐 / 提取链路必须经过 POI 去重（前端 `apps/web/src/services/placeDedupe.ts`、后端 `apps/api/app/place_dedupe.py`）。不要绕过这两个工具自行实现。
 20. 不要把景区入口、停车场、东 / 西 / 南 / 北门、售票处、游客中心、公交站、地铁站、出入口、卫生间、出租车 / 网约车上下客点等附属 POI 作为独立候选景点展示；它们应该被合并到主地点，或直接过滤。
 21. 不得删除或弱化「中华门 / 朝阳门 / 西直门 / 宣武门 / 玄武门 / 凯旋门 / 前门大街 / 东门老街」等本身就是知名主地点的名字。
+22. 修改 POI 去重 / 主地点聚合时必须同时更新后端 `apps/api/app/place_dedupe.py` 和前端 `apps/web/src/services/placeDedupe.ts`，并在 `docs/CHANGE_RECORD.md` 记录同步规则与验证样例，避免真实后端、前端 Mock、fallback 行为不一致。
