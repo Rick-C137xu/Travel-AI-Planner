@@ -1,6 +1,6 @@
 # AI Agent 协作规则
 
-本项目是“AI 出行旅游计划助手”。当前版本为 V4.3.5 Over-filter Fix：在 V4.3.4 全国通用 POI 主地点聚合基础上，修复“去重过滤过度”问题。高校、公园、景区、博物馆等可识别子 POI 必须先归并成主地点，再判断是否过滤；能归并为「云南大学」「翠湖公园」「西湖风景区」等有价值主地点的条目不得在入口阶段被直接删除。前后端去重规则必须同步维护，Vercel 前端继续请求 Render 后端。
+本项目是“AI 出行旅游计划助手”。当前版本为 V4.4 Local User Preferences：在 V4.3.5 POI 主地点聚合与 Over-filter 修复基础上，新增本地用户偏好保存。偏好档案只保存在当前浏览器 localStorage（key：`travel_ai_planner_user_preferences_v1`），不接入登录、数据库或新的第三方 API；目的地、日期、人数不作为长期偏好保存。前后端去重规则必须同步维护，Vercel 前端继续请求 Render 后端。
 
 后续 agent 修改项目时请遵守以下规则：
 

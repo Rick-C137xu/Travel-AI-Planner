@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import PreferenceSummary from '@/components/PreferenceSummary.vue';
 import { questions } from '@/data/questions';
+import { buildUserPreferencesFromTravelForm, saveUserPreferences } from '@/services/userPreferences';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import type { BudgetLevel, Pace } from '@/types';
 
@@ -9,6 +10,7 @@ const { state } = usePlannerStore();
 const currentQuestion = computed(() => questions[state.questionIndex] ?? questions[0]);
 const localValue = ref('');
 const localMulti = ref<string[]>([]);
+const preferenceSaveMessage = ref('');
 
 function syncLocal() {
   const question = currentQuestion.value;
@@ -30,7 +32,7 @@ function toggleOption(value: string) {
     : [...localMulti.value, value];
 }
 
-function saveAnswer() {
+function commitCurrentAnswer() {
   const question = currentQuestion.value;
   const key = question.key;
   if (question.kind === 'multi') {
@@ -60,7 +62,11 @@ function saveAnswer() {
     date.setDate(date.getDate() + state.preference.days - 1);
     state.preference.endDate = date.toISOString().slice(0, 10);
   }
+}
 
+function saveAnswer() {
+  commitCurrentAnswer();
+  preferenceSaveMessage.value = '';
   if (state.questionIndex < questions.length - 1) {
     state.questionIndex += 1;
     syncLocal();
@@ -86,6 +92,18 @@ function isReady() {
 
 function setSingle(value: string | number) {
   localValue.value = String(value);
+}
+
+function canSaveAsDefault() {
+  return state.questionIndex >= 4;
+}
+
+function saveAsDefaultPreference() {
+  commitCurrentAnswer();
+  const saved = saveUserPreferences(buildUserPreferencesFromTravelForm(state.preference));
+  preferenceSaveMessage.value = saved
+    ? '已保存为默认旅行偏好。下次新建计划时可一键使用。'
+    : '当前浏览器暂时无法写入 localStorage，本次偏好未保存。';
 }
 </script>
 
@@ -140,10 +158,14 @@ function setSingle(value: string | number) {
 
       <div class="flow-actions">
         <button class="ghost-btn" @click="goBack">返回上一步</button>
+        <button v-if="canSaveAsDefault()" class="ghost-btn" @click="saveAsDefaultPreference">
+          保存为我的默认偏好
+        </button>
         <button class="primary-btn" :disabled="!isReady()" @click="saveAnswer">
           {{ state.questionIndex === questions.length - 1 ? '查看候选地点' : '下一步' }}
         </button>
       </div>
+      <p v-if="preferenceSaveMessage" class="small-note preference-save-note">{{ preferenceSaveMessage }}</p>
     </div>
     <PreferenceSummary :preference="state.preference" />
   </section>

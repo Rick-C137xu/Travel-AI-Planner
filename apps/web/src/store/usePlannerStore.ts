@@ -226,7 +226,7 @@ export function usePlannerStore() {
   }
 
   function updateRuntimeStatus<T>(response: ApiEnvelope<T>, scope: RuntimeScope = 'general') {
-    const label = response.dataSourceLabel || (response.backendMode ? 'V4.3 后端' : '前端 Mock');
+    const label = response.dataSourceLabel || (response.backendMode ? 'V4.4 后端' : '前端 Mock');
     state.backendConnected = response.backendMode === true;
     state.aiEnabled = typeof response.aiEnabled === 'boolean' ? response.aiEnabled : state.aiEnabled;
     state.amapEnabled = typeof response.amapEnabled === 'boolean' ? response.amapEnabled : state.amapEnabled;

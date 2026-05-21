@@ -1,6 +1,8 @@
 export type Pace = 'relaxed' | 'normal' | 'intense';
 export type BudgetLevel = 'low' | 'medium' | 'high';
 export type PlaceStatus = 'want' | 'reject' | 'backup';
+export type WakeUpPreference = 'no_early_start' | 'flexible' | 'early_ok';
+export type AccommodationPreference = 'city_center' | 'near_scenic_area' | 'near_transport' | 'undecided';
 
 export interface TravelPreference {
   destination: string;
@@ -14,6 +16,17 @@ export interface TravelPreference {
   budgetLevel: BudgetLevel;
   hotelArea: string;
   transportPreference: string[];
+}
+
+export interface UserPreferenceProfile {
+  pace: Pace;
+  wakeUpPreference: WakeUpPreference;
+  budgetLevel: BudgetLevel;
+  transportPreference: string[];
+  accommodationPreference: AccommodationPreference;
+  interestTags: string[];
+  avoidTags: string[];
+  updatedAt: string;
 }
 
 export interface Place {

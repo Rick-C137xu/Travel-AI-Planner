@@ -1,5 +1,79 @@
 # Change Record
 
+## 2026-05-21 V4.4 Local User Preferences
+
+### 背景
+
+用户测试不同目的地时，每次都要重复填写稳定偏好，例如不喜欢早起、偏好轻松节奏、默认预算、交通方式、住宿倾向、常用兴趣和避雷标签。本轮新增本地用户偏好保存，让新建计划时可以快速复用这些长期偏好，同时不接入登录、数据库或新 API。
+
+### 修改文件
+
+- `apps/web/src/types.ts`
+  - 新增 `WakeUpPreference`、`AccommodationPreference`、`UserPreferenceProfile` 类型。
+- `apps/web/src/services/userPreferences.ts`
+  - 新增本地偏好服务。
+  - localStorage key：`travel_ai_planner_user_preferences_v1`。
+  - 提供 `getUserPreferences()`、`saveUserPreferences(profile)`、`clearUserPreferences()`、`hasUserPreferences()`、`mergePreferencesIntoTravelForm(form, profile)`。
+  - 读取、解析、写入均做 try/catch，偏好数据损坏或 localStorage 不可用时不会影响主流程。
+- `apps/web/src/components/StartPage.vue`
+  - 检测到本地偏好时显示“使用默认偏好 / 重新填写 / 管理偏好”。
+  - 增加偏好管理摘要与“清除默认偏好”按钮。
+  - 明确提示数据仅保存在当前浏览器，不会上传服务器。
+- `apps/web/src/components/GuidedChat.vue`
+  - 在偏好题阶段提供“保存为我的默认偏好”按钮。
+  - 保存前先提交当前题答案，避免当前题未写入偏好。
+- `apps/web/src/components/AppHeader.vue`
+  - 页面版本标签升级到 V4.4，同时保留 AI / 高德 / Mock / Weather 状态展示。
+- `apps/web/src/store/usePlannerStore.ts`
+  - 后端默认 fallback 标签升级为 `V4.4 后端`。
+- `apps/web/src/styles.css`
+  - 新增本地偏好提示、管理区和移动端按钮布局样式。
+- `README.md`
+  - 当前版本更新为 V4.4，并说明本地偏好保存能力与限制。
+- `AGENTS.md`
+  - 当前版本说明更新为 V4.4，并记录 localStorage key 与约束。
+- `docs/CHANGE_RECORD.md`
+  - 记录本轮改动、保存字段、不保存字段、清除方式和检查结果。
+
+### 保存内容
+
+- 行程强度：`pace`
+- 起床偏好：`wakeUpPreference`
+- 默认预算：`budgetLevel`
+- 默认交通方式：`transportPreference`
+- 默认住宿偏好：`accommodationPreference`
+- 默认兴趣标签：`interestTags`
+- 默认避雷偏好：`avoidTags`
+- 更新时间：`updatedAt`
+
+### 不保存内容
+
+- 目的地
+- 出发日期 / 结束日期
+- 游玩天数
+- 人数
+- 真实 API Key 或任何后端部署配置
+- 已生成的候选地点和行程内容
+
+### 使用方式
+
+- 用户在问答偏好阶段点击“保存为我的默认偏好”。
+- 下次新建计划时，Start 页会提示检测到默认偏好，可选择“使用默认偏好”或“重新填写”。
+- “管理偏好”可查看摘要；“清除默认偏好”会删除 `travel_ai_planner_user_preferences_v1`，恢复无偏好状态。
+
+### 说明
+
+- 本轮只做浏览器本地保存，不接入登录系统、数据库或新第三方 API。
+- 换设备不会同步；清理浏览器缓存后会丢失。
+- 后续如果加入登录系统，可将本地偏好升级为云端同步。
+- 未修改 Render / Vercel 环境变量，未提交任何真实 Key。
+
+### 检查结果
+
+- `python -m compileall app`：通过
+- `npm.cmd run typecheck`：通过
+- `npm.cmd run build`：通过
+
 ## 2026-05-21 V4.3.5 Over-filter Fix
 
 ### 背景

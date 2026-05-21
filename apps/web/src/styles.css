@@ -179,6 +179,32 @@ button:disabled {
   color: var(--muted);
 }
 
+.preference-prompt,
+.preference-manager {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #cfe0d8;
+  border-radius: 8px;
+  background: #eef7f2;
+}
+
+.preference-prompt span,
+.preference-manager small {
+  color: var(--muted);
+}
+
+.preference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.preference-save-note {
+  margin: 10px 0 0;
+}
+
 .primary-btn,
 .ghost-btn,
 .option-btn,
@@ -644,7 +670,8 @@ button:disabled {
 
   .primary-btn,
   .ghost-btn,
-  .card-actions button {
+  .card-actions button,
+  .preference-actions button {
     flex: 1 1 140px;
   }
 
