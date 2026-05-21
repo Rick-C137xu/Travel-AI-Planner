@@ -1,5 +1,5 @@
 /**
- * V4.3.4 前端 POI 去重与全国通用主地点聚合工具。
+ * V4.3.5 前端 POI 去重与主地点保护工具。
  *
  * 与 apps/api/app/place_dedupe.py 保持同名 / 同语义实现。
  */
@@ -327,6 +327,8 @@ export function isAuxiliaryPoi(name: string, category?: string | null): boolean 
   for (const keyword of [...LODGING_KEYWORDS, ...FOOD_SHOP_KEYWORDS, ...LOW_VALUE_KEYWORDS]) {
     if (raw.includes(keyword) || cat.includes(keyword)) return true;
   }
+  const normalized = normalizePlaceName(raw);
+  if (normalized !== raw && isProtectedMainPlace(normalized)) return false;
   if (AUXILIARY_CATEGORY_HINTS.some((hint) => cat.includes(hint))) return true;
   for (const suffix of AUXILIARY_SUFFIXES) {
     if (raw.endsWith(suffix) && raw.length > suffix.length) {
@@ -334,8 +336,15 @@ export function isAuxiliaryPoi(name: string, category?: string | null): boolean 
       if (remainder.length >= 2) return true;
     }
   }
-  const normalized = normalizePlaceName(raw);
   return Boolean(normalized && normalized !== raw && looksLikeChildPlace(raw, normalized));
+}
+
+function isProtectedMainPlace(name: string): boolean {
+  if (!name) return false;
+  if (KNOWN_MAIN_PLACES.has(name)) return true;
+  if (name.endsWith('大学')) return true;
+  if (SCENIC_AGGREGATION_RULES.some(([, mainName]) => name === mainName)) return true;
+  return SCENIC_MAIN_TERMS.some((term) => name.endsWith(term));
 }
 
 interface DedupeLike {
@@ -352,6 +361,8 @@ interface DedupeLike {
 
 function badDisplayScore(name: string, category?: string | null): number {
   let score = isAuxiliaryPoi(name, category) ? 100 : 0;
+  const cat = category || '';
+  if (AUXILIARY_CATEGORY_HINTS.some((hint) => cat.includes(hint))) score += 30;
   for (const keyword of [...UNIVERSITY_SUBUNIT_KEYWORDS, ...AUXILIARY_SUFFIXES, ...LODGING_KEYWORDS]) {
     if (name.includes(keyword)) score += 12;
   }

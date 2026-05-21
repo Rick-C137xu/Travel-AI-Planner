@@ -1,4 +1,4 @@
-"""V4.3.4 POI 去重与全国通用主地点聚合（后端）。"""
+"""V4.3.5 POI 去重与主地点保护（后端）。"""
 from __future__ import annotations
 
 import re
@@ -341,6 +341,9 @@ def is_auxiliary_poi(name: str, category: str | None = None) -> bool:
     for keyword in _LODGING_KEYWORDS + _FOOD_SHOP_KEYWORDS + _LOW_VALUE_KEYWORDS:
         if keyword in raw or keyword in cat:
             return True
+    normalized = normalize_place_name(raw)
+    if normalized != raw and _is_protected_main_place(normalized):
+        return False
     if any(hint in cat for hint in _AUXILIARY_CATEGORY_HINTS):
         return True
     for suffix in _AUXILIARY_SUFFIXES:
@@ -348,8 +351,19 @@ def is_auxiliary_poi(name: str, category: str | None = None) -> bool:
             remainder = _strip_trailing_separators(raw[: -len(suffix)])
             if len(remainder) >= 2:
                 return True
-    normalized = normalize_place_name(raw)
     return bool(normalized and normalized != raw and _looks_like_child_place(raw, normalized))
+
+
+def _is_protected_main_place(name: str) -> bool:
+    if not isinstance(name, str) or not name:
+        return False
+    if name in _KNOWN_MAIN_PLACES:
+        return True
+    if name.endswith("大学"):
+        return True
+    if any(name == main_name for _, main_name in _SCENIC_AGGREGATION_RULES):
+        return True
+    return any(name.endswith(term) for term in _SCENIC_MAIN_TERMS)
 
 
 def _looks_like_child_place(raw: str, normalized: str) -> bool:
@@ -366,6 +380,9 @@ def _bad_display_score(name: str, category: str | None) -> int:
     score = 0
     if is_auxiliary_poi(name, category):
         score += 100
+    cat = category or ""
+    if any(hint in cat for hint in _AUXILIARY_CATEGORY_HINTS):
+        score += 30
     for keyword in _UNIVERSITY_SUBUNIT_KEYWORDS + _AUXILIARY_SUFFIXES + _LODGING_KEYWORDS:
         if keyword in name:
             score += 12
