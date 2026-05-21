@@ -1,5 +1,71 @@
 # Change Record
 
+## 2026-05-21 V4.3.2 POI Dedupe and Place Aggregation
+
+### 背景
+
+用户在测试昆明目的地时反馈：候选地点中出现「云南大学东门 / 西门 / 北门 / 停车场」「翠湖公园南门 / 停车场」「金马坊停车场」等条目，看起来像多个独立景点。这些其实是同一个主地点的附属 POI，会让推荐列表像 POI 数据库导出，不像真实旅行规划结果。
+
+V4.3.2 在 V4.3.1（AI / 高德 / 天气）已有能力之上，统一增加基础 POI 去重与地点聚合，**不回退**任何 V4 能力，不接新增 API，不改任何 Key / 环境变量。
+
+### 新增文件
+
+- `apps/api/app/place_dedupe.py`：后端 POI 去重核心
+  - `normalize_place_name(name)`：剥离末尾附属后缀，得到主地点名（叠加后缀也能剥干净）。
+  - `is_auxiliary_poi(name, category=None)`：综合名称末尾后缀 + 类别命中（停车场 / 公交站 / 出入口…）判定低价值 POI；命中主地点白名单时一定返回 False。
+  - `dedupe_places(places)`：按归一化名分组，非附属优先 + 内容完整度优先 + 首次出现顺序，永不返回空列表。
+- `apps/web/src/services/placeDedupe.ts`：前端镜像实现，签名 `normalizePlaceName / isAuxiliaryPoi / dedupePlaces`，与后端语义一致。
+
+### 修改文件
+
+- `apps/api/app/services/planner_service.py`
+  - 引入 `dedupe_places / is_auxiliary_poi`。
+  - `recommend_places` / `extract_places` 拆分为公共方法 + `_impl` 私有方法，公共方法在返回前统一走一次 `dedupe_places`。
+  - `_collect_amap_pois` 在高德 POI 入口处直接 `is_auxiliary_poi` 过滤，节约后续 AI 文案增强 token，避免同一主地点的多 POI 同时进 AI prompt。
+  - `generate_itinerary` 在排序前对入参 places 走一次 `dedupe_places`，避免同一主地点被分到同一天多个时段。
+- `apps/web/src/services/mockPlanner.ts`
+  - 引入 `dedupePlaces`。
+  - 新增「昆明」城市 Mock：翠湖公园 / 云南大学 / 金马碧鸡坊 / 云南省博物馆 / 滇池海埂大坝 / 西山风景区 / 斗南花市 / 南强街 / 昆明老街 / 官渡古镇 / 讲武堂旧址 / 大观公园 / 过桥米线老店；不含任何门 / 停车场 / 入口条目。
+  - `mockRecommendPlaces / mockExtractPlaces` 返回前走一次 `dedupePlaces`。
+- `apps/web/src/services/api.ts`：新增 `applyPlaceDedupe<T>(envelope)`，对后端返回的 `Place[]` 再保险一次去重，兼容旧版本后端 / 前端 Mock fallback 路径。
+- `apps/web/src/components/PlaceRecommendation.vue` + `apps/web/src/styles.css`：在候选页 `source-note` 中增加一行 `dedupe-hint`：「V4.3.2 已加入基础 POI 去重，会尽量合并景点入口、停车场等附属地点，优先展示主游玩地点。」样式克制，不打扰主流程。
+
+### 去重规则（手工验证样例）
+
+输入（模拟昆明真实高德 POI 返回 / 用户粘贴）：
+
+```
+云南大学东门
+云南大学西门
+云南大学北门
+云南大学停车场
+翠湖公园南门
+翠湖公园停车场
+金马坊停车场
+金马碧鸡坊
+```
+
+期望经 `dedupePlaces` / `dedupe_places` 处理后：
+
+- 「云南大学东门 / 西门 / 北门 / 停车场」→ 合并为「云南大学」（无主条目时被附属条目重命名）。
+- 「翠湖公园南门 / 停车场」→ 合并为「翠湖公园」。
+- 「金马坊停车场」→ 合并为「金马坊」。
+- 「金马碧鸡坊」与「金马坊」名称不一致（前者多 2 字），按名称归一化属于不同组，保留 `金马碧鸡坊` 作为更常用全称。
+- 不影响「中华门 / 朝阳门 / 西直门 / 宣武门 / 玄武门 / 凯旋门 / 前门大街 / 东门老街」这类知名主地点（命中 `_KNOWN_MAIN_PLACES` 白名单或末尾不匹配附属后缀规则）。
+
+### 不变 / 不做
+
+- 未修改 `AI_API_KEY / AI_MODEL / AMAP_KEY / VITE_AMAP_KEY / VITE_API_BASE_URL / VITE_USE_MOCK / securityJsCode`。
+- 未改 Render / Vercel 部署配置；未引入新依赖。
+- 未做坐标聚类（真实坐标聚合留到接入真实地图能力后再做）。
+- 未删除 V2.1 已有城市专属 Mock 数据。
+
+### 检查结果
+
+- `python -m compileall app`：通过
+- `npm.cmd run typecheck`：通过
+- `npm.cmd run build`：通过
+
 ## 2026-05-20 V4.3.1 文案与缓存版本统一修复
 
 ### 问题

@@ -1,6 +1,6 @@
 # AI 出行旅游计划助手
 
-当前版本：V4.1 AI 接入 + 失败降级语义对齐
+当前版本：V4.3.2 POI Dedupe and Place Aggregation
 
 这是一个网页端旅行规划 MVP。用户通过问答收集旅行需求，系统推荐候选地点，用户选择想去、备选或不想去，再生成每日行程，并在地图区域显示地点清单或地图降级视图。
 
@@ -12,6 +12,9 @@
 - V3：FastAPI 后端已完成 Render 部署联通验证，前端可通过 `VITE_USE_MOCK=false` 请求线上后端 API。
 - V4：后端新增 AI 调用封装（OpenAI-compatible）与高德 Web 服务封装。配置了 `AI_API_KEY` 和 `AMAP_KEY` 后，推荐接口会返回真实 POI + AI 推荐文案；未配置时仍返回后端 Mock 数据。
 - V4.1：AI 接入后的失败降级语义统一。AI 请求超时 / 出错 / JSON 解析失败时，POI 仍来自高德，文案/行程退回为后端模板，envelope 中 `dataSourceLabel="高德地图 + 后端模板"`，前端显示 `V4.1 AI Fallback` 并提示「AI 请求失败，已降级为后端模板，地点仍来自高德 POI」。
+- V4.3：接入高德天气 API（复用现有 `AMAP_KEY`），行程页显示当日 / 多日天气；版本号统一升级到 V4.3。
+- V4.3.1：候选页 AI 文案增强失败时不再误显示「AI Fallback」；前端所有 V4.2 残留文案统一升级到 V4.3；行程缓存 key 升级到 v4.3，主动丢弃旧缓存里的 V4.2 sourceLabel。
+- V4.3.2：基础 POI 去重与地点聚合。新增 `apps/api/app/place_dedupe.py` 与 `apps/web/src/services/placeDedupe.ts`，统一处理「景区入口 / 停车场 / 公交站 / 出入口 / 卫生间」等附属 POI 的合并与过滤，避免「云南大学东门 / 西门 / 北门 / 停车场」被当成 4 个独立景点。前端 Mock / 后端 Mock / 真实高德 POI 三条链路均接入；行程生成前也走一次轻量去重。新增昆明城市专属 Mock 数据。真实坐标聚类与地图 API 返回的更复杂清洗仍留到后续版本。
 
 V4.1 运行模式以后端环境变量为准：
 

@@ -1,4 +1,5 @@
 import type { DayPlan, ItineraryItem, Place, TravelPreference } from '@/types';
+import { dedupePlaces } from '@/services/placeDedupe';
 
 type MockPlaceSeed = Omit<Place, 'id' | 'source' | 'userStatus'>;
 
@@ -117,6 +118,21 @@ const cityPlaces: Record<string, MockPlaceSeed[]> = {
     place('珠江夜游码头', '交通点', '用船行方式看广州夜景，适合放在晚上收尾。', '夜景、交通体验、情侣', '1-1.5 小时', '天字码头或大沙头码头', null, null, '船票价格和航线差异大，提前确认。'),
     place('早茶餐厅', '餐厅', '广州旅行很适合安排一顿早茶，节奏舒服。', '美食、家庭、朋友出行', '1.5-2 小时', '荔湾或越秀周边', null, null, '热门早茶店建议早点到。')
   ],
+  昆明: [
+    place('翠湖公园', '自然风景', '昆明城市中心湖景公园，冬天有红嘴鸥，春秋适合散步看花。', '自然风景、Citywalk、亲子', '1.5-2.5 小时', '五华区翠湖南路', 25.0556, 102.7045, '冬季观鸥人多，早晨人少光线好。'),
+    place('云南大学', '景点', '老校区银杏道与会泽院适合慢逛拍照，文化氛围浓。', 'Citywalk、拍照、文化', '1-1.5 小时', '五华区翠湖北路（紧邻翠湖公园）', 25.0612, 102.7077, '校园开放时间会调整，进门走正门或挂牌入口。'),
+    place('金马碧鸡坊', '景点', '昆明老城地标牌坊，傍晚灯光氛围更出片，可与南屏街组合。', '夜景、拍照、初次到访', '40-90 分钟', '西山区金碧路', 25.0319, 102.7117, '附近商业街较热闹，注意保管随身物品。'),
+    place('云南省博物馆', '博物馆', '展陈系统讲云南民族与历史，雨天也很稳。', '博物馆、亲子、文化', '2-3 小时', '官渡区广福路', 24.9985, 102.7501, '需提前预约，部分特展另收门票。'),
+    place('滇池海埂大坝', '自然风景', '看滇池、西山倒影和冬日红嘴鸥的最佳位置，开阔出片。', '自然风景、拍照、情侣', '1.5-2.5 小时', '西山区滇池路', 24.9569, 102.6534, '冬季风大注意保暖；夏季紫外线强。'),
+    place('西山风景区', '自然风景', '龙门栈道俯瞰滇池视角经典，适合天气好的半日行程。', '自然风景、拍照、轻徒步', '3-4 小时', '西山区西山林区', 24.9606, 102.6266, '建议坐索道上龙门，下山再徒步，避免太累。'),
+    place('斗南花市', '商圈', '亚洲最大鲜花交易市场，夜市档口尤其热闹，价格亲民。', '夜游、购物、拍照', '1.5-2 小时', '呈贡区斗南街道', 24.8866, 102.8503, '夜市约 20:00 后逐渐进入高峰，注意往返交通。'),
+    place('南强街', '夜市', '老昆明街巷改造的夜间市集，吃喝小演出集中。', '夜市、美食、朋友出行', '1.5-2 小时', '盘龙区南强街', 25.0367, 102.7148, '周末人多，热门小吃排队较长。'),
+    place('昆明老街', '景点', '钱王街 / 文明街等老城肌理保留较好，适合午后慢逛。', 'Citywalk、拍照、文化', '1-2 小时', '五华区景星街片区', 25.0392, 102.7088, '商业化逐渐增多，建议挑工作日错峰。'),
+    place('官渡古镇', '景点', '官渡六寺一阁集中，适合搭配本地小吃半日游。', '文化、小吃、亲子', '2-3 小时', '官渡区古镇路', 24.9582, 102.7595, '部分小吃店关门较早，建议下午到傍晚去。'),
+    place('讲武堂旧址', '博物馆', '近代史与建筑结合的小型博物馆，与翠湖紧邻可顺路。', '历史、文化、轻量参观', '1-1.5 小时', '五华区翠湖西路', 25.0581, 102.7016, '展厅较安静，注意保持低声。'),
+    place('大观公园', '自然风景', '滇池西北角的传统园林，大观楼长联是文化点睛。', '自然风景、亲子、文化', '1.5-2 小时', '西山区大观路', 25.0335, 102.6747, '周末游船排队明显，可步行游览为主。'),
+    place('过桥米线老店', '餐厅', '吃一顿正经过桥米线，作为昆明味觉记忆。', '美食、家庭、朋友出行', '1-1.5 小时', '翠湖或南屏街周边', null, null, '汤底烫，按提示先放生食再放熟食。')
+  ],
   厦门: [
     place('鼓浪屿', '景点', '海岛建筑、街巷和海边风景集中，适合完整半日。', '拍照、情侣、Citywalk', '4-6 小时', '思明区鼓浪屿', 24.4478, 118.0679, '船票和返程时间要提前确认。'),
     place('厦门大学周边', '景点', '校园周边和南普陀、沙坡尾可组合成轻松路线。', 'Citywalk、拍照、文化', '1.5-2.5 小时', '思明区', 24.437, 118.101, '校园开放政策需提前查看。'),
@@ -136,13 +152,15 @@ export function mockRecommendPlaces(preference: TravelPreference, guideText = ''
   const ordered = rankByInterest(seeds, preference.interests);
   const guideHint = guideText.trim() ? ' 已参考你粘贴的攻略文本作为补充。' : '';
 
-  return ordered.map((seed, index) => ({
+  const places: Place[] = ordered.map((seed, index) => ({
     ...seed,
     id: `${cityKey || 'generic'}-${index + 1}`,
     reason: `${seed.reason}${guideHint}`,
     source: 'Mock数据',
     userStatus: index < 6 ? 'backup' : undefined
   }));
+  // V4.3.2：前端 Mock 也走一次 POI 去重，防止后续若往 seed 里手动加入门 / 停车场仍会重复展示。
+  return dedupePlaces(places);
 }
 
 export function mockExtractPlaces(preference: TravelPreference, text: string): Place[] {
@@ -150,7 +168,7 @@ export function mockExtractPlaces(preference: TravelPreference, text: string): P
   const fragments = extractGuideFragments(text);
   const names = fragments.length ? fragments : [`${destination}攻略补充点`, `${destination}顺路餐饮`, `${destination}雨天备选点`];
 
-  return names.slice(0, 8).map((name, index) => ({
+  const extracted: Place[] = names.slice(0, 8).map((name, index) => ({
     id: `front-guide-${Date.now()}-${index + 1}`,
     name: cleanPlaceName(name, destination),
     type: inferType(name, '其他'),
@@ -164,6 +182,8 @@ export function mockExtractPlaces(preference: TravelPreference, text: string): P
     source: '用户粘贴攻略',
     userStatus: 'backup'
   }));
+  // V4.3.2：粘贴攻略文本里也可能出现「XX东门」「XX停车场」，统一走一次去重。
+  return dedupePlaces(extracted);
 }
 
 export function mockGenerateItinerary(preference: TravelPreference, places: Place[]): DayPlan[] {

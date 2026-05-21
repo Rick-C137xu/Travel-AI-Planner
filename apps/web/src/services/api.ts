@@ -1,5 +1,6 @@
 import type { ApiEnvelope, DayPlan, Place, TravelPreference } from '@/types';
 import { mockExtractPlaces, mockGenerateItinerary, mockRecommendPlaces } from './mockPlanner';
+import { dedupePlaces } from './placeDedupe';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
@@ -82,18 +83,31 @@ async function withFallback<T>(request: () => Promise<ApiEnvelope<T>>, fallback:
   }
 }
 
-export function recommendPlaces(preference: TravelPreference, guideText = '') {
-  return withFallback(
+function applyPlaceDedupe<T>(envelope: ApiEnvelope<T>): ApiEnvelope<T> {
+  // V4.3.2：后端通常已经在 planner_service 里走过去重；前端再保险一次，
+  // 兼容旧版本后端或前端 Mock fallback 路径，避免「门 / 停车场」漏网。
+  if (!Array.isArray(envelope.data)) return envelope;
+  const looksLikePlaces = (envelope.data as unknown[]).every(
+    (item) => item && typeof item === 'object' && 'name' in (item as Record<string, unknown>)
+  );
+  if (!looksLikePlaces) return envelope;
+  return { ...envelope, data: dedupePlaces(envelope.data as unknown as Place[]) as unknown as T };
+}
+
+export async function recommendPlaces(preference: TravelPreference, guideText = '') {
+  const envelope = await withFallback(
     () => postJson<Place[]>(apiUrl('/api/places/recommend'), { preference, guideText }),
     () => mockRecommendPlaces(preference, guideText)
   );
+  return applyPlaceDedupe(envelope);
 }
 
-export function extractPlaces(preference: TravelPreference, text: string) {
-  return withFallback(
+export async function extractPlaces(preference: TravelPreference, text: string) {
+  const envelope = await withFallback(
     () => postJson<Place[]>(apiUrl('/api/places/extract'), { preference, text }),
     () => mockExtractPlaces(preference, text)
   );
+  return applyPlaceDedupe(envelope);
 }
 
 export function generateItinerary(preference: TravelPreference, places: Place[]) {

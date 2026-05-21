@@ -373,6 +373,14 @@ button:disabled {
   font-size: 14px;
 }
 
+.source-note .dedupe-hint {
+  display: block;
+  margin-top: 6px;
+  color: #4a6b5e;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
 .weather-card {
   display: flex;
   flex-wrap: wrap;

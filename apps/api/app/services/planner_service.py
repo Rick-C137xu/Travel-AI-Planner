@@ -19,6 +19,7 @@ from typing import Any
 from ..config import Settings
 from ..mock_data import mock_extract_places, mock_itinerary, mock_places
 from ..models import DayPlan, ItineraryItem, Place, TravelPreference
+from ..place_dedupe import dedupe_places, is_auxiliary_poi
 from .ai_client import AIClient
 from .amap_client import AmapClient
 from .weather_client import WeatherClient, build_prompt_line
@@ -88,6 +89,19 @@ class PlannerService:
 
     # ---- 推荐地点 ----
     async def recommend_places(
+        self, preference: TravelPreference, guide_text: str
+    ) -> tuple[list[Place], dict[str, Any]]:
+        """V4.3.2：在原有多路径推荐实现上套一层名称去重。
+
+        会把高德 / AI / Mock 返回的「云南大学东门 / 西门 / 停车场」这类附属 POI 合并为
+        主地点，不动 envelope 文案与能力开关。
+        """
+        places, meta = await self._recommend_places_impl(preference, guide_text)
+        if places:
+            places = dedupe_places(places)
+        return places, meta
+
+    async def _recommend_places_impl(
         self, preference: TravelPreference, guide_text: str
     ) -> tuple[list[Place], dict[str, Any]]:
         ai_on = self.ai.enabled
@@ -225,6 +239,10 @@ class PlannerService:
     async def _collect_amap_pois(
         self, keywords: list[str], city: str, *, limit: int
     ) -> list[dict[str, Any]]:
+        """V4.3.2：在高德 POI 结果入口处跳过明显附属 POI（门 / 停车场 / 公交站...），
+        减少后续 AI 文案增强的 token 浪费，也避免同名重复。名称归一化 / 主地点合并仍由上层
+        dedupe_places 在 Place 级别再走一次。
+        """
         seen_names: set[str] = set()
         collected: list[dict[str, Any]] = []
         for keyword in keywords:
@@ -232,6 +250,8 @@ class PlannerService:
             for poi in pois:
                 name = poi.get("name") or ""
                 if not name or name in seen_names:
+                    continue
+                if is_auxiliary_poi(name, poi.get("type_label") or poi.get("type")):
                     continue
                 seen_names.add(name)
                 poi["search_keyword"] = keyword
@@ -278,6 +298,15 @@ class PlannerService:
 
     # ---- 攻略提取 ----
     async def extract_places(
+        self, preference: TravelPreference, text: str
+    ) -> tuple[list[Place], dict[str, Any]]:
+        """V4.3.2：同样在返回前走一次名称去重。"""
+        places, meta = await self._extract_places_impl(preference, text)
+        if places:
+            places = dedupe_places(places)
+        return places, meta
+
+    async def _extract_places_impl(
         self, preference: TravelPreference, text: str
     ) -> tuple[list[Place], dict[str, Any]]:
         ai_on = self.ai.enabled
@@ -412,6 +441,10 @@ class PlannerService:
     ) -> tuple[list[DayPlan], dict[str, Any]]:
         ai_on = self.ai.enabled
         amap_on = self.amap.enabled
+
+        # V4.3.2：生成行程前轻量去重，避免同一主地点的多个附属 POI 占据同一天多个时段。
+        if places:
+            places = dedupe_places(list(places))
 
         if not places:
             mock = mock_itinerary(preference, places)

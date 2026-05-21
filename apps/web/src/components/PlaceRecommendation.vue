@@ -137,6 +137,7 @@ if (!state.places.length) {
 
       <div class="source-note">
         {{ sourceNote }} 你也可以粘贴攻略文本，系统会尝试提取其中的地点信息；不会自动抓取任何平台内容。
+        <span class="dedupe-hint">V4.3.2 已加入基础 POI 去重，会尽量合并景点入口、停车场等附属地点，优先展示主游玩地点。</span>
       </div>
 
       <p v-if="aiFallbackNotice" class="warning-banner">{{ aiFallbackNotice }}</p>
